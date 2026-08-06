@@ -1,6 +1,6 @@
 from pymongo import MongoClient
-from app.config.settings import mongodb://localhost:27017, local_service_finder
+from app.config.settings import MONGO_URI, DATABASE_NAME
 
-client = MongoClient(mongodb://localhost:27017)
+client = MongoClient(MONGO_URI)
 
-db = client[local_service_finder]
+db = client[DATABASE_NAME]
