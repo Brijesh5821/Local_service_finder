@@ -10,6 +10,8 @@ import ProviderDashboard from '../pages/ProviderDashboard';
 import AdminDashboard from '../pages/AdminDashboard';
 import { useAuth } from '../context/AuthContext';
 
+import ProfilePage from '../pages/ProfilePage';
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user } = useAuth();
 
@@ -30,6 +32,26 @@ const AppRoutes = () => {
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/services" element={<ServicesPage />} />
+        
+        {/* Profile Route */}
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Settings Route - uses ProfilePage */}
+        <Route 
+          path="/settings" 
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          } 
+        />
         
         {/* Protected Dashboard Routes */}
         <Route 
@@ -59,6 +81,7 @@ const AppRoutes = () => {
 
         <Route path="*" element={<NotFoundPage />} />
       </Route>
+
       {/* Auth routes outside of MainLayout to hide Navbar/Footer */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

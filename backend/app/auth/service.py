@@ -54,8 +54,10 @@ def login_user(user):
     token = create_access_token({
         "user_id": str(db_user["_id"]),
         "email": db_user["email"],
-        "role": db_user["role"]
+        "role": db_user["role"],
+        "full_name": db_user.get("full_name", "")
     })
+
 
     return {
         "success": True,

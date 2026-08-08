@@ -29,5 +29,30 @@ export const authService = {
       }
       throw new Error('Network Error or Server Unreachable');
     }
+  },
+
+  getProfile: async () => {
+    try {
+      const response = await api.get('/users/profile');
+      return response.data;
+    } catch (error) {
+      if (error.response?.data) {
+        throw new Error(error.response.data.detail || 'Failed to fetch profile');
+      }
+      throw new Error('Network error or server unreachable');
+    }
+  },
+
+  updateProfile: async (profileData) => {
+    try {
+      const response = await api.put('/users/profile', profileData);
+      return response.data;
+    } catch (error) {
+      if (error.response?.data) {
+        throw new Error(error.response.data.detail || 'Failed to update profile');
+      }
+      throw new Error('Network error or server unreachable');
+    }
   }
 };
+

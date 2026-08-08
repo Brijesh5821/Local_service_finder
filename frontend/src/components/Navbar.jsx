@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { MapPin, Menu, X, Search, User } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { MapPin, Menu, X, Search, User, Settings, LogOut, LayoutDashboard, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
 
   useEffect(() => {
@@ -17,16 +21,40 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'Services', path: '/services' },
-    { name: 'Providers', path: '/providers' },
-    { name: 'About', path: '/about' },
-    { name: 'Contact', path: '/contact' },
   ];
 
+  const handleLogoutClick = () => {
+    logout();
+    setDropdownOpen(false);
+    navigate('/');
+  };
+
+  // Get User Initials for Avatar
+  const getUserInitials = () => {
+    if (!user) return '?';
+    if (user.full_name) {
+      const parts = user.full_name.split(' ');
+      return parts.map(p => p[0]).join('').toUpperCase().slice(0, 2);
+    }
+    return user.email.slice(0, 2).toUpperCase();
+  };
+
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm py-3' : 'bg-white py-4'}`}>
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/95 backdrop-blur-md shadow-md py-3' : 'bg-white py-4'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           
@@ -56,19 +84,68 @@ const Navbar = () => {
             <button className="p-2 text-slate-500 hover:text-blue-600 transition-colors hover:bg-slate-50 rounded-full">
               <Search className="h-5 w-5" />
             </button>
+            
             {isAuthenticated() ? (
-              <>
-                <Link to={`/${user?.role}-dashboard`} className="text-slate-600 hover:text-blue-600 text-sm font-medium px-2 transition-colors">
-                  Dashboard
-                </Link>
-                <Link to="/profile" className="text-slate-600 hover:text-blue-600 text-sm font-medium px-2 transition-colors">
-                  Profile
-                </Link>
-                <button onClick={logout} className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
-                  Logout
+              /* User is logged in dropdown menu */
+              <div className="relative" ref={dropdownRef}>
+                <button 
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-slate-100 transition-colors focus:outline-none"
+                >
+                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                    {getUserInitials()}
+                  </div>
+                  <span className="text-sm font-medium text-slate-700 max-w-[120px] truncate">
+                    {user?.full_name || user?.email}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
-              </>
+
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-150 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in-50 slide-in-from-top-1">
+                    <div className="px-4 py-2 border-b border-slate-100">
+                      <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Logged In As</p>
+                      <p className="text-sm font-bold text-slate-800 truncate">{user?.full_name || 'User'}</p>
+                      <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                    </div>
+
+                    <Link 
+                      to={`/${user?.role}-dashboard`}
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all font-medium"
+                    >
+                      <LayoutDashboard className="h-4 w-4" /> Dashboard
+                    </Link>
+
+                    <Link 
+                      to="/profile"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all font-medium"
+                    >
+                      <User className="h-4 w-4" /> My Profile
+                    </Link>
+
+                    <Link 
+                      to="/settings"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all font-medium"
+                    >
+                      <Settings className="h-4 w-4" /> Settings
+                    </Link>
+
+                    <hr className="my-1 border-slate-100" />
+
+                    <button 
+                      onClick={handleLogoutClick}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-all font-medium"
+                    >
+                      <LogOut className="h-4 w-4" /> Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
+              /* Before login links */
               <>
                 <Link to="/login" className="text-slate-600 hover:text-blue-600 text-sm font-medium px-2 transition-colors">
                   Login
@@ -104,9 +181,14 @@ const Navbar = () => {
               {link.name}
             </Link>
           ))}
+          
           <div className="border-t border-slate-100 pt-4 mt-4 px-2 space-y-3">
             {isAuthenticated() ? (
               <>
+                <div className="px-4 py-2 bg-slate-50 rounded-xl mb-2">
+                  <p className="text-xs text-slate-400 font-semibold uppercase">Logged In As</p>
+                  <p className="text-sm font-bold text-slate-800">{user?.full_name || 'User'}</p>
+                </div>
                 <Link 
                   to={`/${user?.role}-dashboard`}
                   onClick={() => setMobileMenuOpen(false)} 
@@ -122,8 +204,8 @@ const Navbar = () => {
                   Profile
                 </Link>
                 <button 
-                  onClick={() => { logout(); setMobileMenuOpen(false); }}
-                  className="block w-full text-center py-3 bg-slate-900 text-white font-medium rounded-xl hover:bg-slate-800 transition-colors shadow-sm"
+                  onClick={() => { logout(); setMobileMenuOpen(false); navigate('/'); }}
+                  className="block w-full text-center py-3 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-colors shadow-sm"
                 >
                   Logout
                 </button>
