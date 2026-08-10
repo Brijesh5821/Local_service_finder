@@ -142,6 +142,7 @@ const UserDashboard = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [minRating, setMinRating] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [availabilityDay, setAvailabilityDay] = useState('');
 
   // Bookings state
   const [bookings, setBookings] = useState([]);
@@ -165,6 +166,7 @@ const UserDashboard = () => {
       if (filterCity) filters.city = filterCity;
       if (maxPrice) filters.max_price = parseFloat(maxPrice);
       if (minRating) filters.min_rating = parseFloat(minRating);
+      if (availabilityDay) filters.availability = availabilityDay;
 
       const res = await providerService.getProviders(filters);
       setProviders(res.providers || []);
@@ -173,7 +175,7 @@ const UserDashboard = () => {
     } finally {
       setProvidersLoading(false);
     }
-  }, [searchName, selectedCategory, filterCity, maxPrice, minRating]);
+  }, [searchName, selectedCategory, filterCity, maxPrice, minRating, availabilityDay]);
 
   const fetchBookings = useCallback(async () => {
     setBookingsLoading(true);
@@ -347,7 +349,7 @@ const UserDashboard = () => {
 
               {/* Advanced Filters */}
               {showFilters && (
-                <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-500 mb-1">Max Hourly Rate (₹)</label>
                     <input
@@ -369,6 +371,23 @@ const UserDashboard = () => {
                       <option value="3">3+</option>
                       <option value="4">4+</option>
                       <option value="4.5">4.5+</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Availability</label>
+                    <select
+                      value={availabilityDay}
+                      onChange={e => setAvailabilityDay(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Any Day</option>
+                      <option value="monday">Monday</option>
+                      <option value="tuesday">Tuesday</option>
+                      <option value="wednesday">Wednesday</option>
+                      <option value="thursday">Thursday</option>
+                      <option value="friday">Friday</option>
+                      <option value="saturday">Saturday</option>
+                      <option value="sunday">Sunday</option>
                     </select>
                   </div>
                 </div>

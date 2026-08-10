@@ -11,6 +11,7 @@ import AdminDashboard from '../pages/AdminDashboard';
 import { useAuth } from '../context/AuthContext';
 
 import ProfilePage from '../pages/ProfilePage';
+import SettingsPage from '../pages/SettingsPage';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user } = useAuth();
@@ -43,12 +44,12 @@ const AppRoutes = () => {
           } 
         />
         
-        {/* Settings Route - uses ProfilePage */}
+        {/* Settings Route */}
         <Route 
           path="/settings" 
           element={
             <ProtectedRoute>
-              <ProfilePage />
+              <SettingsPage />
             </ProtectedRoute>
           } 
         />

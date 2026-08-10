@@ -22,6 +22,8 @@ def get_providers(name: str = None, category: str = None, city: str = None,
         query.setdefault("hourly_rate", {})["$lte"] = max_price
     if min_rating is not None:
         query["average_rating"] = {"$gte": min_rating}
+    if availability:
+        query[f"availability.{availability.lower()}"] = {"$exists": True, "$ne": [], "$not": {"$size": 0}}
 
     providers = list(users_collection.find(query, {"password": 0}))
     for p in providers:

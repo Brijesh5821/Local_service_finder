@@ -1,0 +1,1676 @@
+================================================================================
+LOCAL SERVICE FINDER - USER MODULE DOCUMENTATION
+================================================================================
+
+Imagine the application like this simple story:
+* Frontend (React) = What the user sees. It is like the storefront of a restaurant.
+* Backend (FastAPI) = The waiter who takes the order, talks to the chef, and brings 
+  back the food.
+* MongoDB = The pantry/fridge where the food (data) is stored.
+* Axios = The messenger boy who runs between the frontend storefront and the 
+  backend waiter carrying letters.
+* FastAPI Router = The reception desk that checks what kind of request came in 
+  (e.g., login request, booking request) and sends it to the right person.
+* JWT = A temporary entry card stamped by the backend that allows the user to 
+  enter private rooms (like the User Dashboard) without showing their ID card 
+  (password) every single time.
+
+Let's read this document to understand exactly how the whole User Module works!
+
+================================================================================
+BEGINNER-FRIENDLY FLOW OF THE ENTIRE USER MODULE
+================================================================================
+
+Let's trace what happens from start to finish when a user uses the platform:
+
+1. **Visiting the website**: The user sees the main website page. The code for this 
+   is in React.
+2. **Registration**: A new user signs up. They fill in details (name, email, 
+   password, role). If they choose the "Provider" role, they also give provider 
+   details like their category (e.g., Plumber), hourly rate, and experience. 
+   React sends this to FastAPI, which hashes (encrypts) the password and saves 
+   it in MongoDB's "users" collection.
+3. **Login**: The user enters their email and password. React sends this via 
+   Axios to FastAPI. FastAPI checks MongoDB. If they match, FastAPI stamps a JWT 
+   token (proof of login) and sends it back. React stores this token in the web 
+   browser's memory (LocalStorage) so it remembers who is logged in.
+4. **Dashboard**: The logged-in user is redirected to the User Dashboard page. 
+   React uses Axios to ask FastAPI for a list of service providers. FastAPI 
+   checks MongoDB and returns them.
+5. **Searching & Filtering**: The user types a name or selects a filter (like "Plumber" 
+   category, "Surendranagar" city, or max price). React sends these filters to 
+   FastAPI. FastAPI builds a custom query, pulls the matched providers from 
+   MongoDB, and sends them back. React updates the screen.
+6. **Booking a Provider**: The user clicks "Book Now". A popup window (BookingModal) 
+   asks for the date, time, and address. When they submit, React sends these 
+   details with the JWT token to FastAPI. FastAPI verifies the token, creates a 
+   booking document in the "bookings" collection in MongoDB with a "Pending" status, 
+   and returns success. React updates the screen to show the new booking.
+7. **Logout**: When the user clicks Logout, React deletes the JWT token from the 
+   browser's LocalStorage and redirects the user to the Home Page.
+
+---
+
+================================================================================
+EXPLAIN EACH FILE IN SIMPLE LANGUAGE
+================================================================================
+
+Below is the explanation for all the important files in this project.
+
+--------------------------------------------------------------------------------
+1. File: frontend/src/api/axios.js
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the messenger's setup file. It configures Axios (our messenger).
+* Why do we need this file?
+  To tell the frontend where our FastAPI backend is running and to automatically 
+  attach the user's logged-in token (JWT) to every request.
+* What does this file do?
+  It sets up a base URL (like "http://127.0.0.1:8000"). It also uses an "interceptor" 
+  which is like a postman who automatically stamps the JWT token onto the envelope 
+  before sending any letter to the backend.
+* When is this file used?
+  Every single time the frontend needs to communicate with the backend.
+* Which file calls/uses this file?
+  All frontend services: `authService.js`, `bookingService.js`, `providerService.js`, 
+  and `apiService.js`.
+* Which API does it call?
+  None directly. It configures the tool that calls all APIs.
+* What data does it receive?
+  It reads the token from the browser's `localStorage.getItem('token')`.
+* What data does it send?
+  It attaches `"Authorization": "Bearer <token>"` to request headers.
+* Where does that data go next?
+  To the FastAPI backend server.
+
+--------------------------------------------------------------------------------
+2. File: frontend/src/context/AuthContext.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the security guard and memory card for the user's login state.
+* Why do we need this file?
+  To share the logged-in user's details (like name, email, and role) across all 
+  components in the app so they know if someone is logged in.
+* What does this file do?
+  It provides `user` state, `login` function, and `logout` function. When a user 
+  logs in, it saves the token in the browser's `localStorage` and decodes it to 
+  read user details. It also calls `/users/profile` to get the latest profile data.
+* When is this file used?
+  Whenever the app starts, or when a user logs in, logs out, or when pages need 
+  to check who is logged in.
+* Which file calls/uses this file?
+  Used in `App.jsx`, `AppRoutes.jsx`, `Navbar.jsx`, `LoginPage.jsx`, and dashboards.
+* Which API does it call?
+  It calls `GET /users/profile` to get fresh profile data.
+* What data does it receive?
+  It receives the JWT token from `LoginPage.jsx` or the browser's local storage.
+* What data does it send?
+  It exposes the `user` object to all child components.
+* Where does that data go next?
+  It goes to React components like `Navbar.jsx` to render the user's name.
+
+--------------------------------------------------------------------------------
+3. File: frontend/src/services/authService.js
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the service file handling authentication operations (registration, login, 
+  profile loading/updating).
+* Why do we need this file?
+  To keep all login and registration network requests in one single organized place.
+* What does this file do?
+  It defines functions: `register` (to sign up), `login` (to sign in), `getProfile` 
+  (to fetch profile), and `updateProfile` (to edit profile details).
+* When is this file used?
+  When submitting register/login forms, when loading the profile page, or when 
+  saving profile changes.
+* Which file calls/uses this file?
+  `LoginPage.jsx`, `RegisterPage.jsx`, `ProfilePage.jsx`, and `AuthContext.jsx`.
+* Which API does it call?
+  * `POST /auth/register` (Register)
+  * `POST /auth/login` (Login)
+  * `GET /users/profile` (Get profile)
+  * `PUT /users/profile` (Update profile)
+* What data does it receive?
+  Forms input data (email, password, full_name, phone, address, etc.).
+* What data does it send?
+  It sends that form data formatted as JSON to the FastAPI backend.
+* Where does that data go next?
+  To the Axios messenger, which sends it to FastAPI routes.
+
+--------------------------------------------------------------------------------
+4. File: frontend/src/services/bookingService.js
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the booking-related messenger.
+* Why do we need this file?
+  To group all booking network operations (creating a booking, viewing bookings, 
+  cancelling a booking) together.
+* What does this file do?
+  It provides three functions: `createBooking`, `getMyBookings`, and `cancelBooking`.
+* When is this file used?
+  When booking a provider inside `BookingModal.jsx`, when loading bookings on the 
+  `UserDashboard.jsx` (My Bookings tab), or when clicking cancel on a booking.
+* Which file calls/uses this file?
+  `BookingModal.jsx` and `UserDashboard.jsx`.
+* Which API does it call?
+  * `POST /bookings/` (Create booking)
+  * `GET /bookings/my` (Get current user's bookings)
+  * `PATCH /bookings/{booking_id}/cancel` (Cancel a pending booking)
+* What data does it receive?
+  * Booking data (date, time, address, provider_id, amount)
+  * Booking ID (for cancellation)
+* What data does it send?
+  HTTP requests containing JSON payloads or URL parameters to the backend.
+* Where does that data go next?
+  To the FastAPI backend.
+
+--------------------------------------------------------------------------------
+5. File: frontend/src/services/providerService.js
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the provider-related messenger.
+* Why do we need this file?
+  To group operations related to finding service providers.
+* What does this file do?
+  It has functions `getProviders` (to fetch list with filters) and `getProviderById` 
+  (to fetch detailed page for one provider).
+* When is this file used?
+  When searching and filtering providers on the `UserDashboard.jsx`.
+* Which file calls/uses this file?
+  `UserDashboard.jsx`.
+* Which API does it call?
+  * `GET /providers/`
+  * `GET /providers/{provider_id}`
+* What data does it receive?
+  A filters object containing parameters like name, category, city, max_price, 
+  min_rating, and availability.
+* What data does it send?
+  It sends these parameters as query parameters in the URL (e.g. `?category=Plumber&city=Surendranagar`).
+* Where does that data go next?
+  To the FastAPI backend router for providers.
+
+--------------------------------------------------------------------------------
+6. File: frontend/src/services/apiService.js
+--------------------------------------------------------------------------------
+* What is this file?
+  This is a general helper service for loading non-user content.
+* Why do we need this file?
+  To fetch services and providers list in a public place.
+* What does this file do?
+  Provides `fetchServices` and `fetchProviders`.
+* When is this file used?
+  When showing public items.
+* Which file calls/uses this file?
+  Can be used by public pages like `HomePage.jsx` to load service lists.
+* Which API does it call?
+  * `GET /services/`
+  * `GET /providers/`
+* What data does it receive?
+  None.
+* What data does it send?
+  An empty GET request.
+* Where does that data go next?
+  To the FastAPI backend.
+
+--------------------------------------------------------------------------------
+7. File: frontend/src/components/Navbar.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the top navigation bar of the application.
+* Why do we need this file?
+  To help users navigate between pages, and to show who is logged in.
+* What does this file do?
+  It displays links (Home, Services). If logged in, it displays the user's name 
+  and their avatar initials. It also provides a dropdown menu containing links to 
+  their Dashboard, Profile, Settings, and a Logout button.
+* When is this file used?
+  It stays visible at the top of almost every page in the application.
+* Which file calls/uses this file?
+  `MainLayout.jsx` renders it on top of pages.
+* Which API does it call?
+  None directly. (It calls the `logout` function from `AuthContext.jsx` which clears 
+  the token locally).
+* What data does it receive?
+  The `user` state and `isAuthenticated` status from `useAuth()`.
+* What data does it send?
+  None to the backend. It redirects the browser page to other paths using `Link`.
+* Where does that data go next?
+  React Router navigates the user to another page (e.g. `/profile`).
+
+--------------------------------------------------------------------------------
+8. File: frontend/src/components/BookingModal.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the popup booking form.
+* Why do we need this file?
+  To let users choose booking details (date, time, address, notes) and book a provider.
+* What does this file do?
+  It shows a popup modal. It collects inputs, validates them, and calls 
+  `bookingService.createBooking` to register the booking.
+* When is this file used?
+  When a logged-in user clicks the "Book Now" button on the `UserDashboard.jsx` or 
+  `ServicesPage.jsx`.
+* Which file calls/uses this file?
+  `UserDashboard.jsx` and `ServicesPage.jsx`.
+* Which API does it call?
+  It invokes `bookingService.createBooking` which calls `POST /bookings/`.
+* What data does it receive?
+  * The `provider` object (containing ID, name, rate) passed down as a prop.
+  * Form inputs filled by the user (booking_date, booking_time, booking_address, notes).
+* What data does it send?
+  An object containing: `provider_id`, `booking_date`, `booking_time`, `booking_address`, 
+  `notes`, `total_amount`, and `service_id` (null).
+* Where does that data go next?
+  To `bookingService.js` and then via Axios to the backend `/bookings/` endpoint.
+
+--------------------------------------------------------------------------------
+9. File: frontend/src/pages/LoginPage.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the Login page interface.
+* Why do we need this file?
+  To allow registered users to enter their credentials and sign in.
+* What does this file do?
+  It displays a beautiful login card. When the user enters their email and password, 
+  it calls `authService.login` and, if successful, saves the returned JWT token 
+  via `AuthContext.jsx` and redirects the user to their respective dashboard 
+  (e.g., `/user-dashboard`).
+* When is this file used?
+  When the user visits `/login`.
+* Which file calls/uses this file?
+  Configured as a route inside `AppRoutes.jsx`.
+* Which API does it call?
+  It calls `POST /auth/login` (via `authService.login`).
+* What data does it receive?
+  Email and password typed by the user.
+* What data does it send?
+  `{ "email": "user@example.com", "password": "securepassword" }` to the backend.
+* Where does that data go next?
+  To the backend FastAPI authentication route.
+
+--------------------------------------------------------------------------------
+10. File: frontend/src/pages/RegisterPage.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the Sign Up / Registration page.
+* Why do we need this file?
+  To let new users or new providers create an account on the website.
+* What does this file do?
+  It shows a multi-step registration form. Step 1 asks if they want to be a standard 
+  "User" or a "Provider". Step 2 asks for their details (name, email, password, 
+  address). If they are a Provider, it also asks for their specialty category, 
+  hourly rate, years of experience, description, and available times.
+* When is this file used?
+  When the user clicks "Sign Up" or goes to `/register`.
+* Which file calls/uses this file?
+  Defined as a route in `AppRoutes.jsx`.
+* Which API does it call?
+  It calls `POST /auth/register` (via `authService.register`).
+* What data does it receive?
+  All fields typed by the user in the registration wizard.
+* What data does it send?
+  A combined user payload. If they are a Provider, it includes fields like 
+  `provider_category`, `hourly_rate`, `experience`, `description`, and `availability`.
+* Where does that data go next?
+  To the backend signup endpoint.
+
+--------------------------------------------------------------------------------
+11. File: frontend/src/pages/UserDashboard.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the main panel page that standard customer users see after logging in.
+* Why do we need this file?
+  To allow customer users to search for providers, filter them, and manage their bookings.
+* What does this file do?
+  It shows:
+  * A welcoming banner displaying booking statistics.
+  * A list of popular categories to click.
+  * Two main tabs: "Available Providers" and "My Bookings".
+  * Search bars and advanced filters (hourly rate, city, ratings, availability day).
+  * A list of bookings showing status (Pending, Confirmed, Completed, Cancelled) 
+    with a "Cancel" button for pending ones.
+* When is this file used?
+  When a logged-in User visits `/user-dashboard`.
+* Which file calls/uses this file?
+  Rendered by `AppRoutes.jsx` when the path is `/user-dashboard`.
+* Which API does it call?
+  * `GET /providers/` (to load providers list)
+  * `GET /bookings/my` (to load bookings list)
+  * `PATCH /bookings/{booking_id}/cancel` (to cancel a booking)
+* What data does it receive?
+  * An array of provider profiles from FastAPI.
+  * An array of bookings matching the logged-in customer.
+* What data does it send?
+  * Search query parameters (e.g. `?name=John&category=Plumber`) to filter providers.
+  * The booking ID to cancel a booking.
+* Where does that data go next?
+  To `providerService.js` and `bookingService.js` respectively.
+
+--------------------------------------------------------------------------------
+12. File: frontend/src/pages/ServicesPage.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the public services search board page.
+* Why do we need this file?
+  To let both logged-in and guest users search and explore specific services 
+  (like AC Repair split service, Leak detection, etc.).
+* What does this file do?
+  It lists all active service offerings. It allows users to search by keyword, 
+  location (city), category, max price, min rating, and availability day. It has a 
+  "Book Now" button on each service.
+* When is this file used?
+  When users click the "Services" link in the navbar or visit `/services`.
+* Which file calls/uses this file?
+  Rendered by `AppRoutes.jsx` for `/services`.
+* Which API does it call?
+  It calls `GET /services/` with filter params.
+* What data does it receive?
+  An array of active service items.
+* What data does it send?
+  Filter parameters like `q` (search term), `city`, `category`, `max_price`, 
+  `min_rating`, `availability`.
+* Where does that data go next?
+  To the backend `services` endpoint.
+
+--------------------------------------------------------------------------------
+13. File: frontend/src/pages/ProfilePage.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the user profile page.
+* Why do we need this file?
+  To let logged-in users view and update their personal details (like phone, 
+  address, profile picture, or provider hourly rate).
+* What does this file do?
+  It displays user profile fields. It provides an "Edit Profile" mode where inputs 
+  become editable fields. Saving triggers a PUT request to update MongoDB data and 
+  refreshes the navigation bar header.
+* When is this file used?
+  When a logged-in user clicks "Profile" in the Navbar dropdown or goes to `/profile`.
+* Which file calls/uses this file?
+  Rendered by `AppRoutes.jsx` for `/profile`.
+* Which API does it call?
+  * `GET /users/profile` (loads profile details)
+  * `PUT /users/profile` (updates profile details)
+* What data does it receive?
+  The user's account details.
+* What data does it send?
+  An object containing the updated fields (e.g. new name, updated phone, city, 
+  address, and provider-specific details if the user is a Provider).
+* Where does that data go next?
+  To `authService.updateProfile` and then to the backend.
+
+--------------------------------------------------------------------------------
+14. File: frontend/src/pages/SettingsPage.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the preferences configuration panel.
+* Why do we need this file?
+  To give users options to configure notifications, switch application preferences, 
+  and edit security settings like updating their password.
+* What does this file do?
+  It shows sections:
+  * **Notifications**: email bookings, push status updates, SMS alerts toggles.
+  * **Application**: dark mode, language, currency settings.
+  * **Security**: change password fields.
+  * **Account**: danger zone (mock account deletion).
+  Note: This settings page holds local states (mock updates) except password change 
+  which simulates a timeout.
+* When is this file used?
+  When the user visits `/settings`.
+* Which file calls/uses this file?
+  Rendered by `AppRoutes.jsx` for `/settings`.
+* Which API does it call?
+  None (simulates updates with mock delays).
+* What data does it receive?
+  Uses local state variables initialized in React.
+* What data does it send?
+  None.
+* Where does that data go next?
+  Updates the local component state.
+
+--------------------------------------------------------------------------------
+15. File: frontend/src/routes/AppRoutes.jsx
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the traffic cop of the React application.
+* Why do we need this file?
+  To map URLs (like `/login`, `/profile`, `/user-dashboard`) to their respective 
+  React pages, and restrict access to logged-in users.
+* What does this file do?
+  It defines all routes. It uses a helper component `ProtectedRoute` which checks 
+  if the user is logged in. If a guest tries to access `/profile`, it redirects 
+  them to `/login`. It also checks roles (e.g. only users with role "provider" 
+  can access `/provider-dashboard`).
+* When is this file used?
+  Every time a user navigates to a new page or URL.
+* Which file calls/uses this file?
+  `main.jsx` -> `App.jsx` renders `AppRoutes.jsx`.
+* Which API does it call?
+  None.
+* What data does it receive?
+  The current URL path and `user` authentication state from `AuthContext.jsx`.
+* What data does it send?
+  None.
+* Where does that data go next?
+  It renders the correct React component for the matched route inside the browser.
+
+--------------------------------------------------------------------------------
+16. File: backend/app/main.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the main entry point and brain of the FastAPI backend.
+* Why do we need this file?
+  To start the server, register routes (APIs), configure CORS, and run database 
+  initialization on startup.
+* What does this file do?
+  It initializes the FastAPI app. It imports and includes the sub-routers:
+  `users_router`, `auth_router`, `providers_router`, `bookings_router`, and 
+  `services_router`. It sets up CORS so our React frontend (running on port 5173) 
+  is allowed to talk to the backend (running on port 8000). On startup, it triggers 
+  `initialize_database()`.
+* When is this file used?
+  Whenever the backend server is started and runs in the background.
+* Which file calls/uses this file?
+  Run by the Python environment command (like `uvicorn app.main:app`).
+* Which API does it call?
+  None. It hosts the endpoints.
+* What data does it receive?
+  Incoming HTTP request details.
+* What data does it send?
+  Appropriate HTTP response headers and payloads back to the client.
+* Where does that data go next?
+  To the client browser.
+
+--------------------------------------------------------------------------------
+17. File: backend/app/auth/routes.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the router file for signup and signin APIs.
+* Why do we need this file?
+  To define URLs `/auth/register` and `/auth/login` so the frontend knows where 
+  to send authentication requests.
+* What does this file do?
+  It maps `/register` POST request to `controller.register()` and `/login` POST 
+  request to `controller.login()`.
+* When is this file used?
+  When a user registers or logs in.
+* Which file calls/uses this file?
+  Registered inside the main FastAPI app in `backend/app/main.py`.
+* Which API does it call?
+  None. It defines `/auth/register` and `/auth/login`.
+* What data does it receive?
+  * For register: Pydantic object `RegisterRequest` (full name, email, password, etc.).
+  * For login: Pydantic object `LoginRequest` (email, password).
+* What data does it send?
+  Hands over the data to `auth/controller.py`.
+* Where does that data go next?
+  To the controller layer.
+
+--------------------------------------------------------------------------------
+18. File: backend/app/auth/controller.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the coordinator for auth requests.
+* Why do we need this file?
+  To isolate route endpoints from business logic.
+* What does this file do?
+  It receives inputs from routes, runs them through `service.py`, and returns 
+  the result.
+* When is this file used?
+  Whenever an authentication route is hit.
+* Which file calls/uses this file?
+  `backend/app/auth/routes.py`.
+* Which API does it call?
+  None directly.
+* What data does it receive?
+  Input data schemas.
+* What data does it send?
+  Sends schemas to `service.py`.
+* Where does that data go next?
+  To `backend/app/auth/service.py`.
+
+--------------------------------------------------------------------------------
+19. File: backend/app/auth/service.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the logic center for signup and login.
+* Why do we need this file?
+  To check validation rules (e.g. if email exists), hash passwords, and create 
+  secure tokens.
+* What does this file do?
+  * For `register_user`: Checks if email already exists in the database. If not, 
+    hashes the password using bcrypt security helper, adds a creation timestamp, 
+    and saves it.
+  * For `login_user`: Finds the user in MongoDB by email, verifies if the plain 
+    password matches the saved hashed password, and generates a JWT token containing 
+    their ID, email, role, and name.
+* When is this file used?
+  During registration and login.
+* Which file calls/uses this file?
+  `backend/app/auth/controller.py`.
+* Which API does it call?
+  None.
+* What data does it receive?
+  The request objects.
+* What data does it send?
+  Requests user documents from `repository.py` and returns success/fail status to the controller.
+* Where does that data go next?
+  Back up the chain to controller -> route -> frontend.
+
+--------------------------------------------------------------------------------
+20. File: backend/app/auth/repository.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the database queries coordinator for authentication.
+* Why do we need this file?
+  To isolate database-specific commands from business logic.
+* What does this file do?
+  * `get_user_by_email(email)`: runs `users_collection.find_one({"email": email})`.
+  * `create_user(user_data)`: runs `users_collection.insert_one(user_data)`.
+* When is this file used?
+  Whenever the service needs to read or write authentication data to MongoDB.
+* Which file calls/uses this file?
+  `backend/app/auth/service.py`.
+* Which API does it call?
+  None.
+* What data does it receive?
+  Email strings or dictionary payloads representing users.
+* What data does it send?
+  Saves data directly into MongoDB.
+* Where does that data go next?
+  Writes database records directly to the "users" collection.
+
+--------------------------------------------------------------------------------
+21. File: backend/app/auth/schema.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the rulebook or blueprint for incoming auth data structure.
+* Why do we need this file?
+  To ensure the frontend does not send missing or malformed fields, and to 
+  automatically document our API fields.
+* What does this file do?
+  It defines Pydantic validation models:
+  * `RegisterRequest`: full_name, email, phone, password, role, profile details, 
+    and provider-specific items.
+  * `LoginRequest`: email and password.
+* When is this file used?
+  Whenever FastAPI parses request bodies for login and register.
+* Which file calls/uses this file?
+  `backend/app/auth/routes.py` and `backend/app/auth/controller.py`.
+* Which API does it call?
+  None.
+* What data does it receive?
+  None.
+* What data does it send?
+  None.
+* Where does that data go next?
+  Used strictly as validation constraints.
+
+--------------------------------------------------------------------------------
+22. File: backend/app/users/routes.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the router for general user and profile operations.
+* Why do we need this file?
+  To handle requests for getting user profiles and updating them.
+* What does this file do?
+  It defines routes like `GET /users/profile` and `PUT /users/profile`. It includes 
+  a helper dependency `get_current_user_id` which decodes the JWT token from the 
+  request headers and checks if the token is valid.
+* When is this file used?
+  When a user logs in and loads their profile page, or updates their profile details.
+* Which file calls/uses this file?
+  Included in `backend/app/main.py`.
+* Which API does it call?
+  None. It defines `/users/profile`.
+* What data does it receive?
+  The JWT token in request headers.
+* What data does it send?
+  Extracts the user ID from the token and sends it to the controller.
+* Where does that data go next?
+  To `users/controller.py`.
+
+--------------------------------------------------------------------------------
+23. File: backend/app/users/repository.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the database coordinator for user profile queries.
+* Why do we need this file?
+  To query the MongoDB "users" collection directly.
+* What does this file do?
+  * `get_user_by_id(user_id)`: Fetches a single user document and converts the 
+    MongoDB `_id` field (which is an ObjectId) into a normal string for React.
+  * `update_user_by_id(user_id, update_data)`: Filters out read-only fields 
+    (like role, password, and id) and saves updated fields via `$set` operation in 
+    the "users" collection.
+* When is this file used?
+  During profile load or profile save.
+* Which file calls/uses this file?
+  `backend/app/users/service.py`.
+* Which API does it call?
+  None.
+* What data does it receive?
+  User IDs and dictionary data.
+* What data does it send?
+  Performs updates in MongoDB.
+* Where does that data go next?
+  Updates MongoDB collection documents.
+
+--------------------------------------------------------------------------------
+24. File: backend/app/providers/routes.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the router file that handles provider searches.
+* Why do we need this file?
+  To define endpoints where clients can ask for lists of providers.
+* What does this file do?
+  It defines `GET /providers/` (with query parameters: name, category, city, prices, 
+  ratings, availability) and `GET /providers/{provider_id}`. It decodes the JWT 
+  token to verify the user is logged in.
+* When is this file used?
+  Whenever the User Dashboard loads.
+* Which file calls/uses this file?
+  Included in `backend/app/main.py`.
+* Which API does it call?
+  None. It hosts `/providers/` APIs.
+* What data does it receive?
+  Query parameters and headers.
+* What data does it send?
+  Forwards filter parameters to the providers controller.
+* Where does that data go next?
+  To `providers/controller.py` and then repository.
+
+--------------------------------------------------------------------------------
+25. File: backend/app/providers/repository.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the database search engine for providers.
+* Why do we need this file?
+  To run complex MongoDB queries to find providers that match user filters.
+* What does this file do?
+  It queries the "users" collection. It filters for accounts where `role` is "Provider". 
+  If filters like city or category are sent, it builds regex (fuzzy match) queries. 
+  If price constraints are set, it queries `hourly_rate`. If availability day is specified 
+  (e.g., "monday"), it checks `availability.monday`.
+* When is this file used?
+  When searching on the dashboard.
+* Which file calls/uses this file?
+  `backend/app/providers/service.py` -> controller.
+* What data does it receive?
+  Fuzzy filters (name, category, city, rates, rating, availability day).
+* What data does it send?
+  Fetches matching provider documents from the database.
+* Where does that data go next?
+  Returns list of providers to service -> controller -> client.
+
+--------------------------------------------------------------------------------
+26. File: backend/app/bookings/routes.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the router for creating and managing bookings.
+* Why do we need this file?
+  To define routes like `POST /bookings/`, `GET /bookings/my`, and 
+  `PATCH /bookings/{booking_id}/cancel`.
+* What does this file do?
+  It handles requests to book providers, cancel bookings, and fetch a logged-in 
+  customer's bookings history.
+* When is this file used?
+  When booking, cancelling, or checking bookings.
+* Which file calls/uses this file?
+  Included in `backend/app/main.py`.
+* Which API does it call?
+  None.
+* What data does it receive?
+  JWT headers, booking payload models, or URL variables.
+* What data does it send?
+  Parses request parameters and calls bookings controller.
+* Where does that data go next?
+  To `bookings/controller.py`.
+
+--------------------------------------------------------------------------------
+27. File: backend/app/bookings/service.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the logic coordinator for bookings.
+* Why do we need this file?
+  To orchestrate booking operations and enrich booking data.
+* What does this file do?
+  * `create_booking`: Validates provider, prepares a booking document with default 
+    statuses: `booking_status = "Pending"` and `payment_status = "Pending"`.
+  * `get_my_bookings`: Fetches the customer's bookings, then queries the "users" 
+    collection to attach the booked provider's name, category, and image.
+* When is this file used?
+  During booking creation or query.
+* Which file calls/uses this file?
+  `backend/app/bookings/controller.py`.
+* What data does it receive?
+  Customer IDs, booking data dictionary, or booking IDs.
+* What data does it send?
+  Sends queries to database collections.
+* Where does that data go next?
+  To `bookings/repository.py` and MongoDB "users" query.
+
+--------------------------------------------------------------------------------
+28. File: backend/app/bookings/repository.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the database query file for bookings.
+* Why do we need this file?
+  To perform database inserts and updates on the "bookings" collection.
+* What does this file do?
+  * `create_booking(booking_doc)`: Inserts booking record into the "bookings" collection.
+  * `get_bookings_by_customer(customer_id)`: Finds all bookings matching `customer_id`.
+  * `cancel_booking(booking_id, customer_id)`: Updates booking status from "Pending" 
+    to "Cancelled" for matching IDs.
+* When is this file used?
+  When modifying bookings in MongoDB.
+* Which file calls/uses this file?
+  `backend/app/bookings/service.py`.
+* What data does it receive?
+  Document dicts, booking IDs, customer IDs.
+* What data does it send?
+  Writes updates directly to MongoDB.
+* Where does that data go next?
+  Saves data directly into the database.
+
+--------------------------------------------------------------------------------
+29. File: backend/app/services/routes.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the router for the services page.
+* Why do we need this file?
+  To support searches for specific service offerings.
+* What does this file do?
+  It defines `GET /services/` and `GET /services/{service_id}`.
+* When is this file used?
+  When searching on the services search board.
+* Which file calls/uses this file?
+  Included in `backend/app/main.py`.
+* Which API does it call?
+  None.
+* What data does it receive?
+  Search parameters: category, city, max_price, ratings, availability, or `q` (query).
+* What data does it send?
+  Sends filters to `services/controller.py`.
+* Where does that data go next?
+  To the controller layer.
+
+--------------------------------------------------------------------------------
+30. File: backend/app/services/repository.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the database query file for service offerings.
+* Why do we need this file?
+  To query the "services" collection.
+* What does this file do?
+  It builds queries for active services. If `q` (global query) is passed, it checks 
+  title, description, category_name, or provider_name using `$or`.
+* When is this file used?
+  When search inputs are sent on `/services`.
+* Which file calls/uses this file?
+  `backend/app/services/service.py`.
+* What data does it receive?
+  Query parameters.
+* What data does it send?
+  Fetches matched active services list.
+* Where does that data go next?
+  Returns list to service -> controller -> route -> client.
+
+--------------------------------------------------------------------------------
+31. File: backend/app/database/connection.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the database connection establishing file.
+* Why do we need this file?
+  To create a connection client to MongoDB so we can talk to our database.
+* What does this file do?
+  It uses `MongoClient` from PyMongo, loads `MONGO_URI` and `DATABASE_NAME` from 
+  environment variables, and establishes the database connection.
+* When is this file used?
+  When the application starts.
+* Which file calls/uses this file?
+  All repository files: auth, users, providers, bookings, services.
+* What data does it receive?
+  `MONGO_URI` and `DATABASE_NAME` strings.
+* What data does it send?
+  Exposes the database instance `db` as a variable.
+* Where does that data go next?
+  Used by repositories to query database collections.
+
+--------------------------------------------------------------------------------
+32. File: backend/app/database/init_database.py
+--------------------------------------------------------------------------------
+* What is this file?
+  This is the database setup and data seeding script.
+* Why do we need this file?
+  To ensure collections and indexes exist in MongoDB, and to populate default 
+  categories and services if the database is empty.
+* What does this file do?
+  It ensures collections (users, categories, services, bookings, reviews, payments, 
+  notifications) exist. It creates unique indexes on `email` and `phone`. It inserts 
+  default category cards (Plumber, Electrician, etc.). If the services collection is 
+  empty, it seeds matching service cards linked to active provider profiles.
+* When is this file used?
+  On backend startup inside `main.py`'s app lifespan event.
+* Which file calls/uses this file?
+  `backend/app/main.py`.
+* Which API does it call?
+  None. Talk to MongoDB client.
+* What data does it receive?
+  Database collection schemas.
+* What data does it send?
+  Creates index definitions and inserts seed data.
+* Where does that data go next?
+  Saves data directly into MongoDB.
+
+---
+
+================================================================================
+EXPLAIN FRONTEND -> BACKEND CONNECTION IN SIMPLE LANGUAGE
+================================================================================
+
+Below is the simple flow for each important user interaction:
+
+--------------------------------------------------------------------------------
+1. New User Registration Flow
+--------------------------------------------------------------------------------
+User enters details in SignUp form and clicks "Sign Up"
+                       ↓
+React `RegisterPage.jsx` `handleSubmit` function runs
+                       ↓
+Axios sends a POST request with details to `http://127.0.0.1:8000/auth/register`
+                       ↓
+FastAPI receives request at `backend/app/auth/routes.py`
+                       ↓
+FastAPI parses payload and checks if email exists via `auth/service.py`
+                       ↓
+MongoDB "users" collection is queried (find_one) to check email availability
+                       ↓
+MongoDB returns result (None if available)
+                       ↓
+FastAPI hashes password, adds created_at timestamp, and calls repository
+                       ↓
+MongoDB inserts new user document in "users" collection and returns inserted_id
+                       ↓
+FastAPI sends HTTP 200 response `{ "success": true, "user_id": "12345" }`
+                       ↓
+Axios receives response and passes data to React code
+                       ↓
+React shows a success message and redirects the user to the Login page after 2s
+
+--------------------------------------------------------------------------------
+2. User Login Flow
+--------------------------------------------------------------------------------
+User enters email/password in LoginPage and clicks "Sign In"
+                       ↓
+React `LoginPage.jsx` `handleSubmit` function runs
+                       ↓
+Axios sends POST request to `/auth/login`
+                       ↓
+FastAPI receives request in `auth/routes.py`
+                       ↓
+FastAPI queries MongoDB "users" collection for matching email
+                       ↓
+MongoDB returns user document (containing hashed password and role)
+                       ↓
+FastAPI verifies password hash. If matches, generates JWT token containing user details
+                       ↓
+FastAPI sends HTTP 200 response with token: `{ "success": true, "access_token": "..." }`
+                       ↓
+Axios receives response and React `login(token)` from `AuthContext.jsx` runs
+                       ↓
+React saves token to LocalStorage and decodes payload to know user role
+                       ↓
+React `AuthContext` calls `/users/profile` to load details, and redirects user to Dashboard
+
+--------------------------------------------------------------------------------
+3. Provider Search Flow
+--------------------------------------------------------------------------------
+User enters query in provider search input on dashboard and clicks Search
+                       ↓
+React `UserDashboard.jsx` `fetchProviders` function runs
+                       ↓
+Axios sends GET request with name query parameter `/providers/?name=John`
+                       ↓
+FastAPI receives request at `providers/routes.py` and decodes JWT token for validation
+                       ↓
+FastAPI queries MongoDB "users" collection filtering by name and role = "Provider"
+                       ↓
+MongoDB returns list of matching provider documents
+                       ↓
+FastAPI normalizes database `_id` to `id` and removes password hashes
+                       ↓
+FastAPI sends response `{ "success": true, "providers": [...] }`
+                       ↓
+Axios receives response and updates React's `providers` state
+                       ↓
+React updates screen, redrawing matching provider cards
+
+--------------------------------------------------------------------------------
+4. Provider Filters Flow
+--------------------------------------------------------------------------------
+User selects category (Plumber), city (Surendranagar), max price (500), and day (Monday)
+                       ↓
+React `UserDashboard.jsx` collects states and runs `fetchProviders`
+                       ↓
+Axios sends GET request with filters: `/providers/?category=Plumber&city=Surendranagar&max_price=500&availability=monday`
+                       ↓
+FastAPI receives request, verifies JWT token, and parses query parameters
+                       ↓
+FastAPI builds query: `{"role": "Provider", "provider_category": "Plumber", "city": "Surendranagar", "hourly_rate": {"$lte": 500}, "availability.monday": {"$exists": true}}`
+                       ↓
+MongoDB queries "users" collection using this query dictionary
+                       ↓
+MongoDB returns matched provider documents
+                       ↓
+FastAPI prepares result list and sends response to client
+                       ↓
+Axios receives list and updates React state
+                       ↓
+React updates screen to show only providers matching these criteria
+
+--------------------------------------------------------------------------------
+5. Service Board (Public Listings) Flow
+--------------------------------------------------------------------------------
+User clicks on "Services" tab in Navbar
+                       ↓
+React `ServicesPage.jsx` loads and runs `fetchServices`
+                       ↓
+Axios sends GET request to `/services/`
+                       ↓
+FastAPI receives request in `services/routes.py`
+                       ↓
+FastAPI queries MongoDB "services" collection for active services (`status = "active"`)
+                       ↓
+MongoDB returns list of service documents
+                       ↓
+FastAPI formats database IDs and sends response `{ "success": true, "services": [...] }`
+                       ↓
+Axios receives list and updates React `services` state
+                       ↓
+React renders list of service cards with title, price, provider details, and city
+
+--------------------------------------------------------------------------------
+6. Booking a Provider Flow
+--------------------------------------------------------------------------------
+User clicks "Book Now" on provider card, fills date, time, address, and clicks Confirm
+                       ↓
+React `BookingModal.jsx` `handleSubmit` runs
+                       ↓
+Axios sends POST request to `/bookings/` with date, time, address, amount, provider_id
+                       ↓
+FastAPI receives request in `bookings/routes.py`, decodes JWT token, gets customer_id
+                       ↓
+FastAPI initializes booking document (`booking_status = "Pending"`, `payment_status = "Pending"`)
+                       ↓
+MongoDB inserts document into "bookings" collection
+                       ↓
+MongoDB returns status and FastAPI responds `{ "success": true, "booking": [...] }`
+                       ↓
+Axios receives response, and React modal shows "Booking Confirmed!" popup
+                       ↓
+Modal closes, and React updates tab to show list of bookings
+
+--------------------------------------------------------------------------------
+7. Viewing My Bookings Flow
+--------------------------------------------------------------------------------
+User selects "My Bookings" tab on dashboard
+                       ↓
+React `UserDashboard.jsx` `fetchBookings` runs
+                       ↓
+Axios sends GET request with JWT token to `/bookings/my`
+                       ↓
+FastAPI receives request, verifies token, extracts customer_id
+                       ↓
+FastAPI queries "bookings" collection for bookings matching this `customer_id`
+                       ↓
+FastAPI queries "users" collection to enrich bookings with provider details
+                       ↓
+MongoDB returns matched bookings and provider info
+                       ↓
+FastAPI sends response `{ "success": true, "bookings": [...] }`
+                       ↓
+Axios receives list and updates React `bookings` state
+                       ↓
+React renders bookings cards showing status badge and provider details
+
+--------------------------------------------------------------------------------
+8. Cancelling a Booking Flow
+--------------------------------------------------------------------------------
+User clicks "Cancel" button on a Pending booking card
+                       ↓
+React `UserDashboard.jsx` `handleCancelBooking` runs (after confirmation prompt)
+                       ↓
+Axios sends PATCH request with JWT token to `/bookings/{booking_id}/cancel`
+                       ↓
+FastAPI receives request, decodes token, matches customer_id
+                       ↓
+FastAPI calls repository: updates booking status to "Cancelled" if status is "Pending"
+                       ↓
+MongoDB updates document and returns modification count
+                       ↓
+FastAPI returns `{ "success": true, "message": "Booking cancelled successfully" }`
+                       ↓
+Axios receives response and React calls `fetchBookings()` to refresh list
+                       ↓
+React redraws list, showing booking status updated to "Cancelled"
+
+--------------------------------------------------------------------------------
+9. Profile Updates Flow
+--------------------------------------------------------------------------------
+User updates address in edit profile form and clicks "Save"
+                       ↓
+React `ProfilePage.jsx` `handleSubmit` runs
+                       ↓
+Axios sends PUT request with updated fields to `/users/profile`
+                       ↓
+FastAPI receives request, decodes JWT, gets user_id, validates payload
+                       ↓
+FastAPI updates fields in MongoDB "users" collection matching this `user_id`
+                       ↓
+MongoDB updates document and returns the fresh profile document
+                       ↓
+FastAPI sends response `{ "success": true, "user": updated_user_doc }`
+                       ↓
+Axios receives response, and React updates `AuthContext` state
+                       ↓
+React updates profile fields on screen and updates Navbar username
+
+---
+
+================================================================================
+EXPLAIN EACH USER FEATURE IN EASY LANGUAGE
+================================================================================
+
+Here is the simple explanation of how each user feature works:
+
+1. **Registration**: 
+   Lets new users create accounts. The client fills in a form. React validates 
+   password matching, bundles fields, and sends them to the `/auth/register` API. 
+   FastAPI encrypts (hashes) the password using a hash function so that if the 
+   database is hacked, passwords are safe. A new user record is saved in MongoDB.
+
+2. **Provider Registration**: 
+   When registering, if the user picks the "Provider" role, the React form shows extra 
+   fields: experience, hourly rate, description, availability times, and category 
+   (e.g., Plumber). These fields are stored in the same MongoDB "users" collection 
+   under the same document, and `role` is saved as `"Provider"`.
+
+3. **Login**: 
+   The user enters email and password. React sends this to the `/auth/login` API. 
+   FastAPI checks if the email exists. It verifies if the password hashes match. 
+   If correct, FastAPI generates a JWT token. The token is sent to the frontend. 
+   React saves the token in LocalStorage and sets the global auth state. React 
+   then reads the role from the token to redirect the user to `/user-dashboard` or 
+   `/provider-dashboard`.
+
+4. **Logout**: 
+   When a user clicks Logout, React deletes the JWT token from the browser's 
+   LocalStorage. It resets the `user` state to `null`. This logs the user out 
+   instantly, and they are redirected to the home page `/`.
+
+5. **User Dashboard**: 
+   The User Dashboard loads two kinds of data: a list of providers (fetched from 
+   `/providers/` via `providerService`) and a list of bookings made by this user 
+   (fetched from `/bookings/my` via `bookingService`). It handles tab navigation.
+
+6. **Provider Search**: 
+   The search bar on the user dashboard lets users type names. When they click search, 
+   it makes a request to `/providers/?name=<typed_name>`. The backend performs a 
+   regex search in the database on `full_name`, returning matching records.
+
+7. **Provider Filters**: 
+   Filters let users refine search results. 
+   * **Category**: filters providers by their specialty (`provider_category`).
+   * **City**: filters providers by the city they live in (`city`).
+   * **Price**: filters providers whose `hourly_rate` is less than or equal to `max_price`.
+   * **Rating**: filters providers whose rating is greater than or equal to `min_rating`.
+   * **Availability**: checks if the provider has schedule entries for that day.
+   The backend applies all these filters to query MongoDB in one step.
+
+8. **Service Board**: 
+   This is the public board that displays specific services (like "Leak Detection", 
+   "Bathroom Sanitization") instead of generic provider profiles. These services 
+   are loaded from the "services" collection and shown on `ServicesPage.jsx`.
+
+9. **Booking**: 
+   When a user books a service, they fill a form inside `BookingModal.jsx` (date, time, 
+   address, instructions). React makes a call to `/bookings/` POST API. The backend 
+   records this booking inside MongoDB with a `"Pending"` status. The page then 
+   refreshes the bookings tab so the user can track it.
+
+10. **My Bookings**: 
+    The "My Bookings" tab fetches bookings matching the current user ID. Because booking 
+    documents only store provider IDs, the backend queries the "users" collection to 
+    find the provider's full name, category, and photo, and merges this info so 
+    React can draw a complete card.
+
+11. **My Profile**: 
+    When `/profile` is opened, React calls `/users/profile` to get the logged-in user's 
+    latest info. The user can click Edit, change their phone number or address, and 
+    click Save. React calls the PUT profile API to save changes to MongoDB.
+
+12. **Settings**: 
+    The settings page contains toggles to customize app behaviors:
+    * **Notifications**: toggles email confirmations, promotional emails, push alerts, 
+      and SMS alerts.
+    * **Application**: toggles dark mode, compact view, language, and currency options.
+    * **Security**: updates user password.
+    Settings options are saved in local React states.
+
+13. **Navbar**: 
+    The Navbar stays at the top of the page. It reads the user state from `AuthContext`. 
+    If logged in, it parses the user's name (or email if name is missing) and extracts 
+    initials (like "JD" for John Doe) to draw an avatar circle. It displays links 
+    tailored to the user's login state.
+
+---
+
+================================================================================
+API EXPLANATION IN EASY LANGUAGE
+================================================================================
+
+Below is the simple explanation and technical details for every API endpoint:
+
+--------------------------------------------------------------------------------
+1. POST /auth/register
+--------------------------------------------------------------------------------
+* What is this API?
+  The Sign Up endpoint.
+* Why do we need it?
+  To create a new user profile inside our database.
+* Who calls it?
+  The React `RegisterPage.jsx` form.
+* What information does it receive?
+  A JSON body with name, email, phone, password, role, profile details. If role is 
+  "Provider", it includes category, experience, description, hourly rate, availability.
+* What does it do?
+  It validates fields, checks if the email is already in use, encrypts (hashes) 
+  the password, and inserts the user record into the "users" collection in MongoDB.
+* What does it return?
+  `{ "success": true, "message": "User Registered Successfully", "user_id": "..." }`
+* Technical Details:
+  * File handling route: `backend/app/auth/routes.py:8`
+  * Function called: `controller.register(user)` -> `service.register_user(user)` -> 
+    `repository.create_user(user_data)`
+  * Database collection: `users`
+
+--------------------------------------------------------------------------------
+2. POST /auth/login
+--------------------------------------------------------------------------------
+* What is this API?
+  The Sign In endpoint.
+* Why do we need it?
+  To verify credentials and issue a secure login token.
+* Who calls it?
+  The React `LoginPage.jsx` form.
+* What information does it receive?
+  A JSON body containing `email` and `password`.
+* What does it do?
+  It finds the user in MongoDB, verifies the password hash, and generates a JWT 
+  access token containing the user's ID, email, and role.
+* What does it return?
+  `{ "success": true, "access_token": "jwt_string", "token_type": "bearer" }`
+* Technical Details:
+  * File handling route: `backend/app/auth/routes.py:13`
+  * Function called: `controller.login(user)` -> `service.login_user(user)`
+  * Database collection: `users`
+
+--------------------------------------------------------------------------------
+3. GET /users/profile
+--------------------------------------------------------------------------------
+* What is this API?
+  Profile loader endpoint.
+* Why do we need it?
+  To load profile details of the logged-in user.
+* Who calls it?
+  `ProfilePage.jsx` on mount, and `AuthContext.jsx` on app start/login.
+* What information does it receive?
+  The JWT token in the Authorization header.
+* What does it do?
+  It decodes the token to get the user's ID, fetches their profile document from 
+  MongoDB, removes the password hash from the data, and returns the profile details.
+* What does it return?
+  `{ "success": true, "user": { "full_name": "...", "email": "...", "phone": "..." } }`
+* Technical Details:
+  * File handling route: `backend/app/users/routes.py:32`
+  * Function called: `get_profile` -> `controller.get_user_profile` -> 
+    `service.get_user_profile` -> `repository.get_user_by_id`
+  * Database collection: `users`
+
+--------------------------------------------------------------------------------
+4. PUT /users/profile
+--------------------------------------------------------------------------------
+* What is this API?
+  Profile editor endpoint.
+* Why do we need it?
+  To let users save updates to their personal profile.
+* Who calls it?
+  `ProfilePage.jsx` when the user clicks Save.
+* What information does it receive?
+  The JWT token in headers, and a JSON body containing updated fields.
+* What does it do?
+  It decodes the token to find the user's ID, updates the modified fields in 
+  the database, and returns the updated profile.
+* What does it return?
+  `{ "success": true, "message": "Profile updated successfully", "user": {...} }`
+* Technical Details:
+  * File handling route: `backend/app/users/routes.py:40`
+  * Function called: `update_profile` -> `controller.update_user_profile` -> 
+    `service.update_user_profile` -> `repository.update_user_by_id`
+  * Database collection: `users`
+
+--------------------------------------------------------------------------------
+5. GET /providers/
+--------------------------------------------------------------------------------
+* What is this API?
+  Provider search and filter endpoint.
+* Why do we need it?
+  To search for and list providers on the User Dashboard.
+* Who calls it?
+  `UserDashboard.jsx` on mount, or when search/filters are applied.
+* What information does it receive?
+  JWT headers, and optional URL query parameters (name, category, city, max_price, 
+  min_rating, availability).
+* What does it do?
+  It builds a MongoDB query based on the active filters, finds matching users with 
+  the role "Provider", removes password hashes, and returns the list.
+* What does it return?
+  `{ "success": true, "providers": [ { "id": "...", "full_name": "...", ... } ] }`
+* Technical Details:
+  * File handling route: `backend/app/providers/routes.py:27`
+  * Function called: `get_providers` -> `controller.get_providers` -> 
+    `service.get_providers` -> `repository.get_providers`
+  * Database collection: `users`
+
+--------------------------------------------------------------------------------
+6. GET /providers/{provider_id}
+--------------------------------------------------------------------------------
+* What is this API?
+  Single provider detail loader.
+* Why do we need it?
+  To view profile details for one specific provider.
+* Who calls it?
+  `UserDashboard.jsx` (when clicking detailed view).
+* What information does it receive?
+  JWT headers, and the provider's ID in the URL.
+* What does it do?
+  It fetches the provider's profile from the database using their ID.
+* What does it return?
+  `{ "success": true, "provider": { ... } }`
+* Technical Details:
+  * File handling route: `backend/app/providers/routes.py:47`
+  * Function called: `get_provider` -> `controller.get_provider_by_id` -> 
+    `repository.get_provider_by_id`
+  * Database collection: `users`
+
+--------------------------------------------------------------------------------
+7. POST /bookings/
+--------------------------------------------------------------------------------
+* What is this API?
+  Booking creation endpoint.
+* Why do we need it?
+  To create a new service booking.
+* Who calls it?
+  `BookingModal.jsx` when submitting a booking.
+* What information does it receive?
+  JWT headers, and a JSON body containing: `provider_id`, `booking_date`, 
+  `booking_time`, `booking_address`, `notes`, and `total_amount`.
+* What does it do?
+  It extracts the customer's ID from the JWT token, prepares a booking document 
+  with `"Pending"` status, and saves it in MongoDB.
+* What does it return?
+  `{ "success": true, "message": "Booking created successfully", "booking": {...} }`
+* Technical Details:
+  * File handling route: `backend/app/bookings/routes.py:27`
+  * Function called: `create_booking` -> `controller.create_booking` -> 
+    `service.create_booking` -> `repository.create_booking`
+  * Database collection: `bookings`
+
+--------------------------------------------------------------------------------
+8. GET /bookings/my
+--------------------------------------------------------------------------------
+* What is this API?
+  My Bookings listing endpoint.
+* Why do we need it?
+  To list bookings made by the logged-in customer.
+* Who calls it?
+  `UserDashboard.jsx` under the My Bookings tab.
+* What information does it receive?
+  JWT headers.
+* What does it do?
+  It finds all booking documents matching the user's ID. It queries the "users" 
+  collection to attach provider details (name, category, photo) to each booking, 
+  and returns the list.
+* What does it return?
+  `{ "success": true, "bookings": [ { "id": "...", "provider_name": "...", ... } ] }`
+* Technical Details:
+  * File handling route: `backend/app/bookings/routes.py:33`
+  * Function called: `get_my_bookings` -> `controller.get_my_bookings` -> 
+    `service.get_my_bookings` -> `repository.get_bookings_by_customer`
+  * Database collection: `bookings`, `users`
+
+--------------------------------------------------------------------------------
+9. PATCH /bookings/{booking_id}/cancel
+--------------------------------------------------------------------------------
+* What is this API?
+  Booking cancellation endpoint.
+* Why do we need it?
+  To allow customers to cancel their bookings.
+* Who calls it?
+  `UserDashboard.jsx` when clicking the Cancel button.
+* What information does it receive?
+  JWT headers, and the booking ID in the URL.
+* What does it do?
+  It checks if the booking belongs to the customer and is currently "Pending". 
+  If so, it updates the booking status to "Cancelled".
+* What does it return?
+  `{ "success": true, "message": "Booking cancelled successfully" }`
+* Technical Details:
+  * File handling route: `backend/app/bookings/routes.py:39`
+  * Function called: `cancel_booking` -> `controller.cancel_booking` -> 
+    `service.cancel_booking` -> `repository.cancel_booking`
+  * Database collection: `bookings`
+
+--------------------------------------------------------------------------------
+10. GET /services/
+--------------------------------------------------------------------------------
+* What is this API?
+  Public services list and search endpoint.
+* Why do we need it?
+  To support the services page searches.
+* Who calls it?
+  `ServicesPage.jsx` on page load, or when search inputs are sent.
+* What information does it receive?
+  Optional query parameters (q, category, city, max_price, min_rating, availability).
+* What does it do?
+  It queries the "services" collection for active offerings that match the filter criteria.
+* What does it return?
+  `{ "success": true, "services": [ { "id": "...", "title": "...", "price_value": ... } ] }`
+* Technical Details:
+  * File handling route: `backend/app/services/routes.py:10`
+  * Function called: `get_services` -> `controller.get_services` -> 
+    `service.get_services` -> `repository.get_services`
+  * Database collection: `services`
+
+--------------------------------------------------------------------------------
+11. GET /services/{service_id}
+--------------------------------------------------------------------------------
+* What is this API?
+  Single service detail loader.
+* Why do we need it?
+  To load details for a specific service offering.
+* Who calls it?
+  Detailed service cards or links.
+* What information does it receive?
+  The service ID in the URL.
+* What does it do?
+  It fetches the service details from MongoDB using its ID.
+* What does it return?
+  `{ "success": true, "service": { ... } }`
+* Technical Details:
+  * File handling route: `backend/app/services/routes.py:31`
+  * Function called: `get_service` -> `controller.get_service_by_id` -> 
+    `service.get_service_by_id` -> `repository.get_service_by_id`
+  * Database collection: `services`
+
+---
+
+================================================================================
+MONGODB EXPLANATION IN EASY LANGUAGE
+================================================================================
+
+MongoDB is a document database. Let's understand some basic terms:
+* **MongoDB Collection**: This is like a folder or a table in SQL. It stores related cards.
+* **MongoDB Document**: This is like a single card or a row in SQL. It is written 
+  as a JSON-like object (key-value pairs) inside a collection.
+* **ObjectId**: A unique identifier generated automatically by MongoDB for every 
+  new document (e.g. `ObjectId("64d1f...")`).
+
+Here are the collections used in this project:
+
+--------------------------------------------------------------------------------
+1. users collection
+--------------------------------------------------------------------------------
+* Why does this collection exist?
+  To store account profiles for everyone on the platform (customers, providers, 
+  and admins).
+* What type of data is stored here?
+  * Common fields: `full_name`, `email`, `phone`, `password` (encrypted), `role`, 
+    `gender`, `address`, `city`, `state`, `pincode`, `created_at`.
+  * Provider-specific fields: `provider_category`, `experience`, `description`, 
+    `hourly_rate`, `availability` (object mapping weekdays to time ranges), 
+    `average_rating`.
+* Which API uses it?
+  `/auth/register`, `/auth/login`, `/users/profile`, `/providers/`, `/bookings/`
+* Which frontend page uses that data?
+  `LoginPage.jsx`, `RegisterPage.jsx`, `UserDashboard.jsx`, `ProfilePage.jsx`, `Navbar.jsx`
+
+--------------------------------------------------------------------------------
+2. services collection
+--------------------------------------------------------------------------------
+* Why does this collection exist?
+  To store specific service offerings (like "Full Home Deep Cleaning" or "AC Split Service") 
+  linked to provider profiles.
+* What type of data is stored here?
+  `title`, `description`, `category_name`, `provider_id` (links to the users collection), 
+  `provider_name`, `provider_image`, `price` (e.g., "$$"), `price_value` (number), 
+  `status` (e.g., "active"), `average_rating`, `city`, `availability`, `created_at`.
+* Which API uses it?
+  `GET /services/`, `GET /services/{service_id}`
+* Which frontend page uses that data?
+  `ServicesPage.jsx`
+
+--------------------------------------------------------------------------------
+3. bookings collection
+--------------------------------------------------------------------------------
+* Why does this collection exist?
+  To store records of all bookings placed by users.
+* What type of data is stored here?
+  `customer_id` (user's ID), `provider_id` (provider's ID), `service_id` (can be null), 
+  `booking_date`, `booking_time`, `booking_address`, `notes`, `booking_status` 
+  ("Pending", "Confirmed", "Completed", "Cancelled"), `payment_status` ("Pending", "Paid"), 
+  `total_amount`, `created_at`.
+* Which API uses it?
+  `POST /bookings/`, `GET /bookings/my`, `PATCH /bookings/{booking_id}/cancel`
+* Which frontend page uses that data?
+  `UserDashboard.jsx` (My Bookings tab), `BookingModal.jsx`
+
+--------------------------------------------------------------------------------
+4. categories collection
+--------------------------------------------------------------------------------
+* Why does this collection exist?
+  To store category names and icons (like Plumber, Electrician) to show on homepages.
+* What type of data is stored here?
+  `category_name`, `icon` (string representing icons), `image`, `description`, 
+  `is_active`, `created_at`.
+* Which API uses it?
+  Initialized during database initialization in `init_database.py`.
+* Which frontend page uses that data?
+  `HomePage.jsx` and category lists.
+
+---
+
+================================================================================
+IMPORTANT TERMS - SIMPLE GLOSSARY
+================================================================================
+
+* **React**: A Javascript library used to build interactive frontend interfaces.
+* **Component**: A reusable building block of the user interface, like a Button or Navbar.
+* **Props**: Data passed down from a parent React component to a child component, like parameters to a function.
+* **State**: An object that holds active data inside a React component, causing the screen to update when changed.
+* **Hook**: A special React function (starting with `use`, like `useState`) that lets you use state and other React features.
+* **useEffect**: A React hook used to perform side effects, like fetching data from an API when a page first loads.
+* **Axios**: A Javascript library used to make HTTP network requests from the browser to the backend.
+* **API (Application Programming Interface)**: A set of routes and rules that lets the frontend communicate with the backend.
+* **REST API**: An architectural style for APIs that uses standard web protocols to transfer data.
+* **HTTP Method**: The action requested on a route, telling the server what type of operation to perform.
+* **GET**: An HTTP method used to read or fetch data from the server.
+* **POST**: An HTTP method used to send new data to the server to create a record.
+* **PUT**: An HTTP method used to replace or update an entire existing database record.
+* **PATCH**: An HTTP method used to make partial updates to a record (like changing one field).
+* **DELETE**: An HTTP method used to remove a record from the database.
+* **FastAPI**: A fast web framework for building APIs in Python.
+* **Router**: A module in FastAPI that groups related API endpoints together (e.g. all `/bookings` endpoints).
+* **Endpoint**: A specific URL path on an API (like `/auth/login`) that performs a particular action.
+* **Middleware**: Code that runs automatically on every request before it hits the endpoint (e.g. check CORS or tokens).
+* **JWT (JSON Web Token)**: A secure, encoded string used as proof that a user is logged in.
+* **Authentication**: The process of verifying who a user is (e.g., checking their password).
+* **Authorization**: The process of verifying what a user is allowed to do (e.g. checking their role).
+* **MongoDB**: A document-based database that stores data in JSON-like records.
+* **Collection**: A group of related documents in MongoDB, similar to a table in SQL.
+* **Document**: A single record stored in a MongoDB collection, similar to a row in SQL.
+* **ObjectId**: A unique 12-byte identifier created automatically by MongoDB for every document.
+* **Schema**: A structural blueprint defining what fields are required and what types of data they must hold.
+* **Pydantic**: A Python library used by FastAPI to validate that incoming API data matches our defined schemas.
+* **CORS (Cross-Origin Resource Sharing)**: A security system that controls which websites are allowed to talk to our API.
+* **Environment Variable**: Configuration values stored outside the code (like database links or secrets) inside a `.env` file.
+* **CRUD**: An acronym for Create, Read, Update, and Delete—the four basic operations you perform on database records.
+
+---
+
+================================================================================
+WHERE SHOULD I MAKE CHANGES? (PRACTICAL EXAMPLES)
+================================================================================
+
+If you want to modify features in the codebase, here are the actual files you must edit:
+
+1. **If you want to change the Login Page user interface**:
+   * File to edit: [LoginPage.jsx](file:///d:/Local-service-finder/frontend/src/pages/LoginPage.jsx)
+   * Description: Edit the HTML layout or styling classes inside the return statement of `LoginPage`.
+
+2. **If you want to change the Login API validation rules**:
+   * File to edit: [routes.py (auth)](file:///d:/Local-service-finder/backend/app/auth/routes.py) and [service.py (auth)](file:///d:/Local-service-finder/backend/app/auth/service.py)
+   * Description: Modify checking logic inside `login_user(user)` in `service.py` to change how users are authenticated.
+
+3. **If you want to edit how the provider card looks on the dashboard**:
+   * File to edit: [UserDashboard.jsx](file:///d:/Local-service-finder/frontend/src/pages/UserDashboard.jsx)
+   * Description: Locate `const ProviderCard = ({ provider, onBook })` around line 36 and edit the JSX template structure inside it.
+
+4. **If you want to add a new search filter for providers (e.g. filter by experience)**:
+   * Frontend changes: Edit [UserDashboard.jsx](file:///d:/Local-service-finder/frontend/src/pages/UserDashboard.jsx) (add an input field to the filter UI, add it to filters state, and append it in `fetchProviders()`) and [providerService.js](file:///d:/Local-service-finder/frontend/src/services/providerService.js).
+   * Backend changes: Edit [repository.py (providers)](file:///d:/Local-service-finder/backend/app/providers/repository.py) to check the parameter and append the filter condition to the MongoDB search query.
+
+5. **If you want to change the booking process (e.g. set booking status to "Approved" by default instead of "Pending")**:
+   * File to edit: [service.py (bookings)](file:///d:/Local-service-finder/backend/app/bookings/service.py)
+   * Description: Inside `create_booking()`, modify `"booking_status": "Pending"` to your preferred default status.
+
+6. **If you want to change user fields inside MongoDB schemas**:
+   * Backend schemas: Edit [schema.py (auth)](file:///d:/Local-service-finder/backend/app/auth/schema.py) and [schema.py (users)](file:///d:/Local-service-finder/backend/app/users/schema.py).
+   * Description: Add your new fields to `RegisterRequest` or `UserProfileUpdate` to validate incoming requests.
+
+---
+
+================================================================================
+HOW TO DEBUG (TROUBLESHOOTING GUIDE FOR BEGINNERS)
+================================================================================
+
+--------------------------------------------------------------------------------
+1. Problem: Login is not working
+--------------------------------------------------------------------------------
+* What it usually means:
+  The email/password checker failed, the backend server is offline, or the network 
+  port is blocked.
+* Which file to check:
+  * Backend API: [routes.py (auth)](file:///d:/Local-service-finder/backend/app/auth/routes.py) and [service.py (auth)](file:///d:/Local-service-finder/backend/app/auth/service.py)
+  * Frontend Login page: [LoginPage.jsx](file:///d:/Local-service-finder/frontend/src/pages/LoginPage.jsx)
+  * Configuration: [settings.py](file:///d:/Local-service-finder/backend/app/config/settings.py)
+* What to check:
+  * Press F12 in Chrome, go to the **Network** tab, click login, and look for `/auth/login`. See if it returns 401 (invalid password) or stays pending (server offline).
+  * Check if your backend server terminal is running and listening on port 8000.
+  * Check if `SECRET_KEY` is loaded correctly in `.env`.
+* How to fix it:
+  * If F12 shows a connection error, start the server using `uvicorn app.main:app --reload` inside the `backend` folder.
+  * Check the database to see if the user was seeded correctly and you are typing the correct email.
+
+--------------------------------------------------------------------------------
+2. Problem: Providers are not showing up on the dashboard
+--------------------------------------------------------------------------------
+* What it usually means:
+  The database query returned an empty list, the MongoDB service is stopped, or the 
+  JWT authorization header is missing.
+* Which file to check:
+  * Backend DB query: [repository.py (providers)](file:///d:/Local-service-finder/backend/app/providers/repository.py)
+  * Frontend loader: [UserDashboard.jsx](file:///d:/Local-service-finder/frontend/src/pages/UserDashboard.jsx)
+* What to check:
+  * Check the F12 Network tab for the `/providers/` call. If it returns 401 Unauthorized, the token was not stored or is expired.
+  * Check if the "users" collection in MongoDB contains documents where `role` is `"Provider"` or `"provider"`.
+* How to fix it:
+  * Log out and log back in to get a fresh token.
+  * Run the seeding script `python app/database/seed.py` or restart the backend to run `initialize_database()` to insert default providers.
+
+--------------------------------------------------------------------------------
+3. Problem: Booking a provider fails when clicking confirm
+--------------------------------------------------------------------------------
+* What it usually means:
+  The POST request fields do not match the expected API structure, or the backend 
+  failed to parse the provider ID.
+* Which file to check:
+  * Frontend: [BookingModal.jsx](file:///d:/Local-service-finder/frontend/src/components/BookingModal.jsx)
+  * Backend logic: [service.py (bookings)](file:///d:/Local-service-finder/backend/app/bookings/service.py)
+* What to check:
+  * Check the error message in the frontend alert.
+  * In the network tab, inspect the payload sent to `/bookings/`. Make sure `provider_id` is a valid 24-character hex string.
+* How to fix it:
+  * Ensure the provider you are booking exists in the database.
+  * Make sure you entered a valid date and time format.
+
+--------------------------------------------------------------------------------
+4. Problem: MongoDB data is not appearing on the screen
+--------------------------------------------------------------------------------
+* What it usually means:
+  The backend cannot connect to MongoDB, or the collection has no data.
+* Which file to check:
+  * Backend Connection: [connection.py](file:///d:/Local-service-finder/backend/app/database/connection.py)
+  * Environment variables: `backend/.env`
+* What to check:
+  * Check your terminal output. If PyMono gives a `ServerSelectionTimeoutError`, the MongoDB server is not running.
+  * Verify if `MONGO_URI` in `.env` is correct.
+* How to fix it:
+  * Start MongoDB locally (open Services on Windows and start MongoDB).
+  * Double check the database connection link in your `.env` file (e.g. `mongodb://localhost:27017`).
+
+--------------------------------------------------------------------------------
+5. Problem: Frontend gets a 404 error on API calls
+--------------------------------------------------------------------------------
+* What it usually means:
+  The API route path is typed incorrectly on the frontend, or the route prefix is wrong.
+* Which file to check:
+  * Backend Routes: [main.py](file:///d:/Local-service-finder/backend/app/main.py) and router files
+  * Frontend Services: [authService.js](file:///d:/Local-service-finder/frontend/src/services/authService.js)
+* What to check:
+  * Compare the URL requested by Axios (e.g. `http://localhost:8000/auth/login`) with the route registered in backend files.
+* How to fix it:
+  * Correct the spelling of the path in Axios request.
+  * Check if you forgot to register the router in `main.py` using `app.include_router()`.
+
+--------------------------------------------------------------------------------
+6. Problem: Axios gives a CORS error
+--------------------------------------------------------------------------------
+* What it usually means:
+  The API backend is blocking the frontend browser because it is running on a 
+  different port.
+* Which file to check:
+  * Backend Server config: [main.py](file:///d:/Local-service-finder/backend/app/main.py)
+* What to check:
+  * Look at `origins` array around line 20 in `main.py`. Check if your frontend's port 
+    (typically `http://localhost:5173`) is listed.
+* How to fix it:
+  * Add your exact frontend domain URL to the `origins` list in `main.py` and restart 
+    the backend server.
+
+---
+
+================================================================================
+THE END - AN ANALOGY REMINDER
+================================================================================
+
+To summarize everything one last time, think of it like this:
+You (User) select a pizza (Service) on a menu (Frontend). The waiter (Axios) takes 
+your choice and walks through the door (FastAPI Router) into the kitchen (FastAPI). 
+The chef (Controller & Service) reads the ticket, grabs ingredients from the pantry 
+(MongoDB database), cooks the pizza, and hands it back to the waiter (Axios) to 
+place it right in front of you (React updates the screen).
+
+You are now ready to build, modify, and debug the Local Service Finder application!
+================================================================================

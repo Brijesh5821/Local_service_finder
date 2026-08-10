@@ -10,6 +10,7 @@ export const providerService = {
       if (filters.min_price !== undefined) params.min_price = filters.min_price;
       if (filters.max_price !== undefined) params.max_price = filters.max_price;
       if (filters.min_rating !== undefined) params.min_rating = filters.min_rating;
+      if (filters.availability) params.availability = filters.availability;
 
       const res = await api.get('/providers/', { params });
       return res.data;
