@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bell, Shield, Smartphone, Trash2, Key, Globe,
@@ -6,17 +6,22 @@ import {
   Lock, Mail, Eye, EyeOff, Loader2, Info, User
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
+import { COMMON_WEAK_PASSWORDS } from '../utils/constants';
+import { authService } from '../services/authService';
 
 /* ── Reusable Toggle ── */
-const Toggle = ({ checked, onChange, id }) => (
+const Toggle = ({ checked, onChange, id, disabled }) => (
   <button
     id={id}
     role="switch"
     aria-checked={checked}
-    onClick={() => onChange(!checked)}
-    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+    disabled={disabled}
+    onClick={() => !disabled && onChange(!checked)}
+    className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
       checked ? 'bg-blue-600' : 'bg-slate-200'
-    }`}
+    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
   >
     <span
       className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${
@@ -55,6 +60,7 @@ const SettingRow = ({ label, description, children }) => (
 
 const SettingsPage = () => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   /* ── Notification Settings ── */
   const [notifs, setNotifs] = useState({
@@ -64,15 +70,93 @@ const SettingsPage = () => {
     pushUpdates: true,
     smsAlerts: false,
   });
-  const toggleNotif = (key) => setNotifs(prev => ({ ...prev, [key]: !prev[key] }));
 
   /* ── Application Settings ── */
   const [app, setApp] = useState({
-    darkMode: false,
+    darkMode: theme === 'dark',
     compactView: false,
     language: 'en',
     currency: 'INR',
   });
+
+  const [loginAlerts, setLoginAlerts] = useState(true);
+
+  // Load preferences from profile on mount
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const response = await authService.getProfile();
+        if (response.success && response.user?.preferences) {
+          const p = response.user.preferences;
+          setApp(prev => ({
+            ...prev,
+            compactView: p.compact_view ?? prev.compact_view,
+            language: p.language ?? prev.language,
+            currency: p.currency ?? prev.currency,
+          }));
+          setNotifs(prev => ({
+            ...prev,
+            emailBookings: p.email_bookings ?? prev.emailBookings,
+            emailPromotions: p.email_promotions ?? prev.emailPromotions,
+            pushBookings: p.push_bookings ?? prev.pushBookings,
+            pushUpdates: p.push_updates ?? prev.pushUpdates,
+            smsAlerts: p.sms_alerts ?? prev.smsAlerts,
+          }));
+          setLoginAlerts(p.login_alerts ?? true);
+        }
+      } catch (err) {
+        console.error("Failed to load user settings preferences", err);
+      }
+    };
+    loadPreferences();
+  }, []);
+
+  const saveSetting = async (updatedFields) => {
+    try {
+      await authService.updateSettings(updatedFields);
+    } catch (err) {
+      console.error("Failed to persist settings", err);
+    }
+  };
+
+  const toggleNotif = async (key) => {
+    const nextVal = !notifs[key];
+    setNotifs(prev => ({ ...prev, [key]: nextVal }));
+    
+    const mapping = {
+      emailBookings: 'email_bookings',
+      emailPromotions: 'email_promotions',
+      pushBookings: 'push_bookings',
+      pushUpdates: 'push_updates',
+      smsAlerts: 'sms_alerts',
+    };
+    if (mapping[key]) {
+      await saveSetting({ [mapping[key]]: nextVal });
+    }
+  };
+
+  const updateAppSetting = async (key, val) => {
+    setApp(prev => ({ ...prev, [key]: val }));
+    
+    const mapping = {
+      compactView: 'compact_view',
+      language: 'language',
+      currency: 'currency',
+    };
+    if (mapping[key]) {
+      await saveSetting({ [mapping[key]]: val });
+    }
+  };
+
+  const toggleLoginAlerts = async (val) => {
+    setLoginAlerts(val);
+    await saveSetting({ login_alerts: val });
+  };
+
+  // Keep app.darkMode state in sync with context theme
+  useEffect(() => {
+    setApp(prev => ({ ...prev, darkMode: theme === 'dark' }));
+  }, [theme]);
 
   /* ── Security Settings ── */
   const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
@@ -81,9 +165,30 @@ const SettingsPage = () => {
   const [pwLoading, setPwLoading] = useState(false);
   const [pwSuccess, setPwSuccess] = useState('');
   const [pwError, setPwError] = useState('');
+  const [pwFieldErrors, setPwFieldErrors] = useState({ newPw: '', confirm: '' });
 
-  const [twoFA, setTwoFA] = useState(false);
-  const [loginAlerts, setLoginAlerts] = useState(true);
+  useEffect(() => {
+    const errors = { newPw: '', confirm: '' };
+    if (pwForm.newPw) {
+      if (pwForm.newPw.length < 8) {
+        errors.newPw = 'Password must be at least 8 characters long.';
+      } else if (!/[A-Z]/.test(pwForm.newPw)) {
+        errors.newPw = 'Password must contain at least one uppercase letter.';
+      } else if (!/[a-z]/.test(pwForm.newPw)) {
+        errors.newPw = 'Password must contain at least one lowercase letter.';
+      } else if (!/\d/.test(pwForm.newPw)) {
+        errors.newPw = 'Password must contain at least one number.';
+      } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(pwForm.newPw)) {
+        errors.newPw = 'Password must contain at least one special character.';
+      } else if (COMMON_WEAK_PASSWORDS.includes(pwForm.newPw.toLowerCase())) {
+        errors.newPw = 'Password is too weak or commonly used.';
+      }
+    }
+    if (pwForm.confirm && pwForm.newPw !== pwForm.confirm) {
+      errors.confirm = 'Passwords do not match.';
+    }
+    setPwFieldErrors(errors);
+  }, [pwForm.newPw, pwForm.confirm]);
 
   /* ── Account danger zone ── */
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -101,20 +206,46 @@ const SettingsPage = () => {
     e.preventDefault();
     setPwError('');
     setPwSuccess('');
+
+    if (pwFieldErrors.newPw || pwFieldErrors.confirm) {
+      setPwError('Please fix password validation errors first.');
+      return;
+    }
+
     if (pwForm.newPw !== pwForm.confirm) {
       setPwError("New passwords don't match.");
       return;
     }
-    if (pwForm.newPw.length < 6) {
-      setPwError('Password must be at least 6 characters.');
+
+    if (pwForm.newPw.length < 8) {
+      setPwError('Password must be at least 8 characters.');
       return;
     }
+
+    if (pwForm.newPw === pwForm.current) {
+      setPwError('New password cannot be the same as current password.');
+      return;
+    }
+
     setPwLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-    setPwLoading(false);
-    setPwSuccess('Password updated successfully!');
-    setPwForm({ current: '', newPw: '', confirm: '' });
-    setTimeout(() => setPwSuccess(''), 4000);
+    try {
+      const response = await authService.changePassword({
+        current_password: pwForm.current,
+        new_password: pwForm.newPw,
+        confirm_password: pwForm.confirm
+      });
+
+      if (response.success) {
+        setPwSuccess(response.message || 'Password updated successfully!');
+        setPwForm({ current: '', newPw: '', confirm: '' });
+      } else {
+        setPwError(response.message || 'Failed to update password.');
+      }
+    } catch (err) {
+      setPwError(err.message || 'An error occurred while updating the password.');
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   return (
@@ -201,12 +332,12 @@ const SettingsPage = () => {
                   title="Display Preferences"
                   description="Customize how the application looks and feels"
                 >
-                  <SettingRow label="Dark Mode" description="Switch to a dark color theme (coming soon)">
-                    <Toggle checked={app.darkMode} onChange={(v) => setApp(p => ({ ...p, darkMode: v }))} id="dark-mode" />
+                  <SettingRow label="Dark Mode" description="Switch to a dark color theme">
+                    <Toggle checked={app.darkMode} onChange={toggleTheme} id="dark-mode" />
                   </SettingRow>
                   <div className="border-t border-slate-100" />
                   <SettingRow label="Compact View" description="Show more content with a condensed layout">
-                    <Toggle checked={app.compactView} onChange={(v) => setApp(p => ({ ...p, compactView: v }))} id="compact-view" />
+                    <Toggle checked={app.compactView} onChange={(v) => updateAppSetting('compactView', v)} id="compact-view" />
                   </SettingRow>
                 </Section>
 
@@ -218,7 +349,7 @@ const SettingsPage = () => {
                   <SettingRow label="Language">
                     <select
                       value={app.language}
-                      onChange={(e) => setApp(p => ({ ...p, language: e.target.value }))}
+                      onChange={(e) => updateAppSetting('language', e.target.value)}
                       className="px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="en">English</option>
@@ -231,7 +362,7 @@ const SettingsPage = () => {
                   <SettingRow label="Currency">
                     <select
                       value={app.currency}
-                      onChange={(e) => setApp(p => ({ ...p, currency: e.target.value }))}
+                      onChange={(e) => updateAppSetting('currency', e.target.value)}
                       className="px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="INR">₹ INR</option>
@@ -293,16 +424,20 @@ const SettingsPage = () => {
                         <Lock className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
                         <input
                           type={showNew ? 'text' : 'password'}
-                          required minLength={6}
+                          required minLength={8}
                           value={pwForm.newPw}
                           onChange={e => setPwForm(p => ({ ...p, newPw: e.target.value }))}
-                          placeholder="Min. 6 characters"
+                          placeholder="Min. 8 characters"
                           className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                         />
                         <button type="button" onClick={() => setShowNew(!showNew)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
                           {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
+                      {pwFieldErrors.newPw && (
+                        <p className="text-xs text-red-500 mt-1.5 font-medium">{pwFieldErrors.newPw}</p>
+                      )}
+                      <PasswordStrengthIndicator password={pwForm.newPw} />
                     </div>
                     {/* Confirm New Password */}
                     <div>
@@ -318,11 +453,14 @@ const SettingsPage = () => {
                           className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
                         />
                       </div>
+                      {pwFieldErrors.confirm && (
+                        <p className="text-xs text-red-500 mt-1.5 font-medium">{pwFieldErrors.confirm}</p>
+                      )}
                     </div>
                     <button
                       type="submit"
-                      disabled={pwLoading}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-60 shadow-sm"
+                      disabled={pwLoading || !!pwFieldErrors.newPw || !!pwFieldErrors.confirm || !pwForm.newPw || !pwForm.confirm || !pwForm.current}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
                     >
                       {pwLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Updating…</> : <><Key className="h-4 w-4" /> Update Password</>}
                     </button>
@@ -339,24 +477,24 @@ const SettingsPage = () => {
                     label="Two-Factor Authentication"
                     description="Require a verification code in addition to your password (coming soon)"
                   >
-                    <Toggle checked={twoFA} onChange={setTwoFA} id="2fa" />
+                    <Toggle checked={false} onChange={() => {}} id="2fa" disabled={true} />
                   </SettingRow>
                   <div className="border-t border-slate-100" />
                   <SettingRow
                     label="Login Activity Alerts"
                     description="Get notified via email whenever a new device signs in to your account"
                   >
-                    <Toggle checked={loginAlerts} onChange={setLoginAlerts} id="login-alerts" />
+                    <Toggle checked={loginAlerts} onChange={toggleLoginAlerts} id="login-alerts" />
                   </SettingRow>
                   <div className="border-t border-slate-100" />
                   <div className="py-1">
                     <p className="text-sm font-semibold text-slate-800 mb-1">Active Sessions</p>
                     <p className="text-xs text-slate-500 mb-3">You are currently signed in on 1 device.</p>
                     <button
-                      onClick={logout}
-                      className="flex items-center gap-2 text-sm font-semibold text-red-600 hover:text-red-700 transition-colors"
+                      disabled
+                      className="flex items-center gap-2 text-sm font-semibold text-slate-400 cursor-not-allowed opacity-60"
                     >
-                      <Lock className="h-4 w-4" /> Sign Out All Devices
+                      <Lock className="h-4 w-4" /> Sign Out All Devices (Unavailable)
                     </button>
                   </div>
                 </Section>

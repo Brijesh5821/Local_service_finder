@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, MapPin, ArrowRight, Star, ShieldCheck, Zap, Clock, ThumbsUp, Wrench, Paintbrush, Droplet, Wind, Sparkles, MonitorSmartphone, Trophy, CheckCircle, Users } from 'lucide-react';
+import { Search, MapPin, ArrowRight, Star, ShieldCheck, Zap, ThumbsUp, Wrench, Paintbrush, Droplet, Wind, Sparkles, MonitorSmartphone, Trophy, CheckCircle, Users } from 'lucide-react';
 
 const HomePage = () => {
   const navigate = useNavigate();

@@ -19,17 +19,19 @@ def initialize_database():
         if col not in existing_collections:
             db.create_collection(col)
 
-    # 2. Create recommended indexes automatically
+    # Ensure recommended indexes automatically
     # users indexes
     db.users.create_index([("email", ASCENDING)], unique=True)
     db.users.create_index([("phone", ASCENDING)], unique=True)
     db.users.create_index([("role", ASCENDING)])
     db.users.create_index([("provider_category", ASCENDING)])
+    db.users.create_index([("location", "2dsphere")])
 
     # services indexes
     db.services.create_index([("provider_id", ASCENDING)])
     db.services.create_index([("category_id", ASCENDING)])
     db.services.create_index([("status", ASCENDING)])
+    db.services.create_index([("location", "2dsphere")])
 
     # bookings indexes
     db.bookings.create_index([("customer_id", ASCENDING)])
@@ -170,3 +172,38 @@ def initialize_database():
                     "availability": provider.get("availability"),
                     "created_at": datetime.utcnow()
                 })
+
+    # 5. Seed default admin if not exists
+    if not db.users.find_one({"email": "admin@gmail.com"}):
+        from app.config.security import hash_password
+        db.users.insert_one({
+            "full_name": "System Admin",
+            "email": "admin@gmail.com",
+            "phone": "9999999988",
+            "password": hash_password("admin123"),
+            "role": "Admin",
+            "is_active": True,
+            "status": "active",
+            "account_status": "approved",
+            "created_at": datetime.utcnow()
+        })
+
+    # 6. One-time migration to ensure all users have account_status
+    for u in db.users.find({"account_status": {"$exists": False}}):
+        role_lower = u.get("role", "User").lower()
+        status_val = u.get("status")
+        if role_lower == "admin":
+            acc_status = "approved"
+        elif status_val == "suspended":
+            acc_status = "suspended"
+        elif status_val == "active":
+            acc_status = "approved"
+        else:
+            acc_status = "approved" # default fallback for existing test accounts
+        
+        db.users.update_one(
+            {"_id": u["_id"]},
+            {"$set": {"account_status": acc_status}}
+        )
+
+

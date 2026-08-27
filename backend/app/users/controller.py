@@ -10,4 +10,8 @@ def get_user_profile(user_id: str):
 
 
 def update_user_profile(user_id: str, update_data: dict):
-    return service.update_user_profile(user_id, update_data)
+    return service.update_user_profile(user_id, update_data)
+
+
+def update_user_settings(user_id: str, settings_data: dict):
+    return service.update_user_settings(user_id, settings_data)

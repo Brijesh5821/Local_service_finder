@@ -27,4 +27,17 @@ export const bookingService = {
       throw new Error(error.response?.data?.detail || 'Failed to cancel booking');
     }
   },
+
+  rescheduleBooking: async (bookingId, date, time, reason) => {
+    try {
+      const res = await api.patch(`/bookings/${bookingId}/reschedule`, {
+        booking_date: date,
+        booking_time: time,
+        reason: reason
+      });
+      return res.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || 'Failed to reschedule booking');
+    }
+  },
 };

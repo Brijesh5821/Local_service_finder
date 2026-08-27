@@ -33,13 +33,14 @@ const LoginPage = () => {
 
         const payload = JSON.parse(atob(response.access_token.split('.')[1]));
         const userRole = payload.role ? payload.role.toLowerCase() : 'user';
+        const accountStatus = payload.account_status ? payload.account_status.toLowerCase() : 'approved';
 
-        if (userRole === 'user') {
-          navigate('/user-dashboard');
-        } else if (userRole === 'provider') {
-          navigate('/provider-dashboard');
-        } else if (userRole === 'admin') {
+        if (userRole === 'admin') {
           navigate('/admin-dashboard');
+        } else if (userRole === 'user' && accountStatus === 'approved') {
+          navigate('/user-dashboard');
+        } else if (userRole === 'provider' && accountStatus === 'approved') {
+          navigate('/provider-dashboard');
         } else {
           navigate('/');
         }
@@ -125,9 +126,9 @@ const LoginPage = () => {
                   <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
                     Password
                   </label>
-                  <a href="#" className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors">
+                  <Link to="/forgot-password" className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors">
                     Forgot password?
-                  </a>
+                  </Link>
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">

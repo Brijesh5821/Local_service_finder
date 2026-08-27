@@ -1,29 +1,5 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict
-from datetime import datetime
-
-
-class UserRegister(BaseModel):
-    full_name: str
-    email: EmailStr
-    phone: str
-    password: str
-    role: str = "user"
-
-
-class UserLogin(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class UserResponse(BaseModel):
-    id: Optional[str] = None
-    full_name: str
-    email: EmailStr
-    phone: str
-    role: str
-    created_at: datetime
-
 
 class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None
@@ -41,4 +17,20 @@ class UserProfileUpdate(BaseModel):
     experience: Optional[int] = None
     description: Optional[str] = None
     hourly_rate: Optional[float] = None
-    availability: Optional[Dict[str, List[str]]] = None
+    availability: Optional[Dict[str, List[str]]] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    service_radius: Optional[float] = None
+    holidays: Optional[List[str]] = None
+
+
+class UserSettingsUpdate(BaseModel):
+    language: Optional[str] = None
+    currency: Optional[str] = None
+    compact_view: Optional[bool] = None
+    email_bookings: Optional[bool] = None
+    email_promotions: Optional[bool] = None
+    push_bookings: Optional[bool] = None
+    push_updates: Optional[bool] = None
+    sms_alerts: Optional[bool] = None
+    login_alerts: Optional[bool] = None

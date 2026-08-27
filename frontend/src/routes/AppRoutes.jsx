@@ -12,11 +12,18 @@ import { useAuth } from '../context/AuthContext';
 
 import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
+import ForgotPasswordPage from '../pages/ForgotPasswordPage';
+import ResetPasswordPage from '../pages/ResetPasswordPage';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user } = useAuth();
 
   if (!isAuthenticated()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Enforce account approval check (admin bypasses approval check)
+  if (user && user.role !== 'admin' && user.account_status !== 'approved') {
     return <Navigate to="/login" replace />;
   }
 
@@ -86,6 +93,8 @@ const AppRoutes = () => {
       {/* Auth routes outside of MainLayout to hide Navbar/Footer */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
     </Routes>
   );
 };

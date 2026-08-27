@@ -17,4 +17,8 @@ def update_user_profile(user_id: str, update_data: dict):
     user = repository.update_user_by_id(user_id, update_data)
     if user:
         user.pop("password", None)
-    return user
+    return user
+
+
+def update_user_settings(user_id: str, settings_data: dict):
+    return repository.update_user_settings(user_id, settings_data)

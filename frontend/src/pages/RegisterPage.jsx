@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   User, Mail, Lock, Phone, MapPin, Briefcase, FileText,
@@ -6,6 +6,8 @@ import {
   AlertCircle, ShieldCheck, Star, Wrench
 } from 'lucide-react';
 import { authService } from '../services/authService';
+import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
+import { COMMON_WEAK_PASSWORDS } from '../utils/constants';
 
 const CATEGORIES = [
   "Plumber", "Electrician", "Painter", "Carpenter", "Cleaning",
@@ -34,6 +36,9 @@ const RegisterPage = () => {
     experience: '',
     description: '',
     hourly_rate: '',
+    latitude: '',
+    longitude: '',
+    service_radius: '',
     availability: {
       monday: ['09:00-17:00'],
       tuesday: ['09:00-17:00'],
@@ -48,6 +53,30 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({ password: '', confirmPassword: '' });
+
+  useEffect(() => {
+    const errors = { password: '', confirmPassword: '' };
+    if (formData.password) {
+      if (formData.password.length < 8) {
+        errors.password = 'Password must be at least 8 characters long.';
+      } else if (!/[A-Z]/.test(formData.password)) {
+        errors.password = 'Password must contain at least one uppercase letter.';
+      } else if (!/[a-z]/.test(formData.password)) {
+        errors.password = 'Password must contain at least one lowercase letter.';
+      } else if (!/\d/.test(formData.password)) {
+        errors.password = 'Password must contain at least one number.';
+      } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
+        errors.password = 'Password must contain at least one special character.';
+      } else if (COMMON_WEAK_PASSWORDS.includes(formData.password.toLowerCase())) {
+        errors.password = 'Password is too weak or commonly used.';
+      }
+    }
+    if (formData.confirmPassword && formData.password !== formData.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match.';
+    }
+    setFieldErrors(errors);
+  }, [formData.password, formData.confirmPassword]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -58,6 +87,24 @@ const RegisterPage = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    // Name validation
+    if (!formData.full_name || formData.full_name.trim().length < 3) {
+      setError('Full name must be at least 3 characters long.');
+      return;
+    }
+
+    // Phone validation
+    const cleanedPhone = formData.phone.trim().replace(/[\s-]/g, '');
+    if (!/^(\+?\d{1,4})?\d{10}$/.test(cleanedPhone)) {
+      setError('Please enter a valid 10-digit phone number.');
+      return;
+    }
+
+    if (fieldErrors.password || fieldErrors.confirmPassword) {
+      setError('Please fix password validation errors first.');
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
@@ -85,6 +132,9 @@ const RegisterPage = () => {
         payload.description = formData.description;
         payload.hourly_rate = formData.hourly_rate ? parseFloat(formData.hourly_rate) : null;
         payload.availability = formData.availability;
+        payload.latitude = formData.latitude ? parseFloat(formData.latitude) : null;
+        payload.longitude = formData.longitude ? parseFloat(formData.longitude) : null;
+        payload.service_radius = formData.service_radius ? parseFloat(formData.service_radius) : null;
       }
 
       const response = await authService.register(payload);
@@ -129,9 +179,8 @@ const RegisterPage = () => {
         <div className="flex items-center justify-center gap-3 mb-8">
           {[1, 2].map(s => (
             <div key={s} className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
-                s <= step ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'bg-slate-200 text-slate-500'
-              }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all ${s <= step ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'bg-slate-200 text-slate-500'
+                }`}>
                 {s < step ? <CheckCircle2 className="h-4 w-4" /> : s}
               </div>
               <span className={`text-xs font-semibold ${s <= step ? 'text-blue-600' : 'text-slate-400'}`}>
@@ -161,20 +210,18 @@ const RegisterPage = () => {
                   <button
                     type="button"
                     onClick={() => setRole('User')}
-                    className={`group p-7 rounded-2xl border-2 cursor-pointer transition-all duration-200 text-left relative overflow-hidden ${
-                      role === 'User'
+                    className={`group p-7 rounded-2xl border-2 cursor-pointer transition-all duration-200 text-left relative overflow-hidden ${role === 'User'
                         ? 'border-blue-600 bg-blue-50 shadow-lg shadow-blue-600/10'
                         : 'border-slate-200 hover:border-blue-300 bg-slate-50/50 hover:bg-blue-50/30'
-                    }`}
+                      }`}
                   >
                     {role === 'User' && (
                       <div className="absolute top-4 right-4 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
                         <CheckCircle2 className="h-4 w-4 text-white" />
                       </div>
                     )}
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 transition-colors ${
-                      role === 'User' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600'
-                    }`}>
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 transition-colors ${role === 'User' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600'
+                      }`}>
                       <User className="h-7 w-7" />
                     </div>
                     <h4 className={`text-lg font-bold mb-1.5 ${role === 'User' ? 'text-blue-700' : 'text-slate-900'}`}>
@@ -185,9 +232,8 @@ const RegisterPage = () => {
                     </p>
                     <div className="mt-4 flex flex-wrap gap-1.5">
                       {['Book services', 'Track orders', 'Rate providers'].map(f => (
-                        <span key={f} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          role === 'User' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
-                        }`}>{f}</span>
+                        <span key={f} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${role === 'User' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                          }`}>{f}</span>
                       ))}
                     </div>
                   </button>
@@ -196,20 +242,18 @@ const RegisterPage = () => {
                   <button
                     type="button"
                     onClick={() => setRole('Provider')}
-                    className={`group p-7 rounded-2xl border-2 cursor-pointer transition-all duration-200 text-left relative overflow-hidden ${
-                      role === 'Provider'
+                    className={`group p-7 rounded-2xl border-2 cursor-pointer transition-all duration-200 text-left relative overflow-hidden ${role === 'Provider'
                         ? 'border-blue-600 bg-blue-50 shadow-lg shadow-blue-600/10'
                         : 'border-slate-200 hover:border-blue-300 bg-slate-50/50 hover:bg-blue-50/30'
-                    }`}
+                      }`}
                   >
                     {role === 'Provider' && (
                       <div className="absolute top-4 right-4 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
                         <CheckCircle2 className="h-4 w-4 text-white" />
                       </div>
                     )}
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 transition-colors ${
-                      role === 'Provider' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600'
-                    }`}>
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 transition-colors ${role === 'Provider' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500 group-hover:bg-blue-100 group-hover:text-blue-600'
+                      }`}>
                       <Wrench className="h-7 w-7" />
                     </div>
                     <h4 className={`text-lg font-bold mb-1.5 ${role === 'Provider' ? 'text-blue-700' : 'text-slate-900'}`}>
@@ -220,9 +264,8 @@ const RegisterPage = () => {
                     </p>
                     <div className="mt-4 flex flex-wrap gap-1.5">
                       {['Earn income', 'Manage schedule', 'Build reputation'].map(f => (
-                        <span key={f} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                          role === 'Provider' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
-                        }`}>{f}</span>
+                        <span key={f} className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${role === 'Provider' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                          }`}>{f}</span>
                       ))}
                     </div>
                   </button>
@@ -311,7 +354,7 @@ const RegisterPage = () => {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
                     <div className="relative">
-                      <User className="absolute left-3.5 top-3.5 h-4.5 w-4.5 text-slate-400 pointer-events-none" style={{width:'1.1rem',height:'1.1rem'}} />
+                      <User className="absolute left-3.5 top-3.5 h-4.5 w-4.5 text-slate-400 pointer-events-none" style={{ width: '1.1rem', height: '1.1rem' }} />
                       <input
                         type="text" name="full_name" required minLength={3}
                         value={formData.full_name} onChange={handleChange}
@@ -325,7 +368,7 @@ const RegisterPage = () => {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
                     <div className="relative">
-                      <Mail className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{width:'1.1rem',height:'1.1rem'}} />
+                      <Mail className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{ width: '1.1rem', height: '1.1rem' }} />
                       <input
                         type="email" name="email" required
                         value={formData.email} onChange={handleChange}
@@ -339,7 +382,7 @@ const RegisterPage = () => {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number</label>
                     <div className="relative">
-                      <Phone className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{width:'1.1rem',height:'1.1rem'}} />
+                      <Phone className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{ width: '1.1rem', height: '1.1rem' }} />
                       <input
                         type="tel" name="phone" required minLength={10}
                         value={formData.phone} onChange={handleChange}
@@ -366,7 +409,7 @@ const RegisterPage = () => {
                   <div className="md:col-span-2">
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Street Address</label>
                     <div className="relative">
-                      <MapPin className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{width:'1.1rem',height:'1.1rem'}} />
+                      <MapPin className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{ width: '1.1rem', height: '1.1rem' }} />
                       <input
                         type="text" name="address" required
                         value={formData.address} onChange={handleChange}
@@ -382,7 +425,6 @@ const RegisterPage = () => {
                     <input
                       type="text" name="city" required
                       value={formData.city} onChange={handleChange}
-                      placeholder="Mumbai"
                       className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm"
                     />
                   </div>
@@ -415,23 +457,27 @@ const RegisterPage = () => {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
                     <div className="relative">
-                      <Lock className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{width:'1.1rem',height:'1.1rem'}} />
+                      <Lock className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{ width: '1.1rem', height: '1.1rem' }} />
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        name="password" required minLength={6}
+                        name="password" required minLength={8}
                         value={formData.password} onChange={handleChange}
-                        placeholder="Min. 6 characters"
+                        placeholder="Min. 8 characters"
                         className="block w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm"
                       />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600">
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {fieldErrors.password && (
+                      <p className="text-xs text-red-500 mt-1.5 font-medium">{fieldErrors.password}</p>
+                    )}
+                    <PasswordStrengthIndicator password={formData.password} />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Confirm Password</label>
                     <div className="relative">
-                      <Lock className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{width:'1.1rem',height:'1.1rem'}} />
+                      <Lock className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{ width: '1.1rem', height: '1.1rem' }} />
                       <input
                         type={showConfirmPassword ? 'text' : 'password'}
                         name="confirmPassword" required
@@ -443,6 +489,9 @@ const RegisterPage = () => {
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
+                    {fieldErrors.confirmPassword && (
+                      <p className="text-xs text-red-500 mt-1.5 font-medium">{fieldErrors.confirmPassword}</p>
+                    )}
                   </div>
                 </div>
 
@@ -491,13 +540,67 @@ const RegisterPage = () => {
                           className="block w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
                         />
                       </div>
+
+                      {/* Latitude */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Latitude</label>
+                        <input
+                          type="number" step="any" name="latitude" required={role === 'Provider'}
+                          value={formData.latitude} onChange={handleChange}
+                          placeholder="e.g. 23.0225"
+                          className="block w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                        />
+                      </div>
+
+                      {/* Longitude */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Longitude</label>
+                        <input
+                          type="number" step="any" name="longitude" required={role === 'Provider'}
+                          value={formData.longitude} onChange={handleChange}
+                          placeholder="e.g. 72.5714"
+                          className="block w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                        />
+                      </div>
+
+                      {/* Service Radius */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Service Radius (km)</label>
+                        <input
+                          type="number" name="service_radius" required={role === 'Provider'} min="1"
+                          value={formData.service_radius} onChange={handleChange}
+                          placeholder="e.g. 15"
+                          className="block w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                        />
+                      </div>
+
+                      <div className="col-span-full flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (navigator.geolocation) {
+                              navigator.geolocation.getCurrentPosition((pos) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  latitude: pos.coords.latitude,
+                                  longitude: pos.coords.longitude
+                                }));
+                              });
+                            }
+                          }}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-all"
+                        >
+                          Auto-detect Coordinates
+                        </button>
+                      </div>
+
                     </div>
 
                     {/* Description */}
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">About Your Services</label>
                       <div className="relative">
-                        <FileText className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{width:'1.1rem',height:'1.1rem'}} />
+                        <FileText className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" style={{ width: '1.1rem', height: '1.1rem' }} />
                         <textarea
                           name="description" required={role === 'Provider'}
                           value={formData.description} onChange={handleChange}
@@ -513,7 +616,7 @@ const RegisterPage = () => {
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !!fieldErrors.password || !!fieldErrors.confirmPassword || !formData.password || !formData.confirmPassword}
                   className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm"
                 >
                   {loading ? (

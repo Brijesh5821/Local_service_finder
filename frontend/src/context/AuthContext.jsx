@@ -11,6 +11,7 @@ const parseToken = (token) => {
       role: payload.role ? payload.role.toLowerCase() : 'user',
       id: payload.user_id,
       full_name: payload.full_name || '',
+      account_status: payload.account_status ? payload.account_status.toLowerCase() : 'approved',
     };
   } catch {
     return null;
@@ -39,6 +40,7 @@ export const AuthProvider = ({ children }) => {
           state: u.state,
           pincode: u.pincode,
           role: u.role ? u.role.toLowerCase() : prev?.role || 'user',
+          account_status: u.account_status ? u.account_status.toLowerCase() : prev?.account_status || 'approved',
         }));
       }
     } catch {
@@ -83,6 +85,7 @@ export const AuthProvider = ({ children }) => {
             state: u.state,
             pincode: u.pincode,
             role: u.role ? u.role.toLowerCase() : parsed.role,
+            account_status: u.account_status ? u.account_status.toLowerCase() : parsed.account_status,
           });
         }
       } catch {

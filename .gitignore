@@ -13,3 +13,5 @@ __pycache__/
 
 # Pytest Cache
 .pytest_cache/
+
+.backend/uploads/

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
-  Search, MapPin, Star, Filter, ChevronDown, ChevronUp,
-  Tag, Loader2, AlertCircle, Home, ChevronRight, SlidersHorizontal, X
+  Search, MapPin, Star, ChevronDown, ChevronUp,
+  Tag, AlertCircle, Home, ChevronRight, SlidersHorizontal, X
 } from 'lucide-react';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
@@ -34,6 +34,79 @@ const WEEKDAYS = [
   { label: 'Sunday', value: 'sunday' },
 ];
 
+const MapModal = ({ onClose, onSelect, initialLat, initialLng }) => {
+  const [coords, setCoords] = useState({
+    lat: initialLat || 23.0225, // Ahmedabad defaults
+    lng: initialLng || 72.5714
+  });
+
+  useEffect(() => {
+    const mapElement = document.getElementById('map-picker');
+    if (!mapElement || !window.L) return;
+
+    const map = window.L.map('map-picker').setView([coords.lat, coords.lng], 12);
+    
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker = window.L.marker([coords.lat, coords.lng], { draggable: true }).addTo(map);
+
+    marker.on('dragend', () => {
+      const position = marker.getLatLng();
+      setCoords({ lat: position.lat, lng: position.lng });
+    });
+
+    map.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+      marker.setLatLng([lat, lng]);
+      setCoords({ lat, lng });
+    });
+
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
+
+    return () => {
+      map.remove();
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden p-6 relative">
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-50">
+          <X className="h-5 w-5" />
+        </button>
+        <h3 className="text-xl font-bold text-slate-900 mb-2">Select Location Coordinates</h3>
+        <p className="text-sm text-slate-500 mb-4">Click anywhere on the map or drag the marker to target your search address.</p>
+        
+        <div id="map-picker" className="w-full h-80 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden mb-5 z-0" />
+        
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl truncate">
+            Lat: {coords.lat.toFixed(6)}, Lng: {coords.lng.toFixed(6)}
+          </span>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all">
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                onSelect(coords.lat, coords.lng);
+                onClose();
+              }}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-all shadow-md"
+            >
+              Select Position
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ServicesPage = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -47,6 +120,18 @@ const ServicesPage = () => {
   const [minRating, setMinRating] = useState('');
   const [selectedDay, setSelectedDay] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Geolocation Search States
+  const [userLat, setUserLat] = useState(null);
+  const [userLng, setUserLng] = useState(null);
+  const [searchRadius, setSearchRadius] = useState(10);
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+
+  // Sorting & Pagination States
+  const [sortBy, setSortBy] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [itemsPerPage] = useState(9);
 
   // Services list state
   const [services, setServices] = useState([]);
@@ -66,7 +151,7 @@ const ServicesPage = () => {
     setSelectedCategory(cat);
     // Scroll to top on mount / navigation
     window.scrollTo({ top: 0, behavior: 'instant' });
-  }, []); // intentionally only on mount
+  }, [searchParams]);
 
   const fetchServices = useCallback(async () => {
     setLoading(true);
@@ -79,10 +164,17 @@ const ServicesPage = () => {
       if (maxPrice) params.max_price = parseFloat(maxPrice);
       if (minRating) params.min_rating = parseFloat(minRating);
       if (selectedDay) params.availability = selectedDay;
+      if (userLat) params.lat = userLat;
+      if (userLng) params.lng = userLng;
+      if (userLat && userLng) params.radius = searchRadius;
+      if (sortBy) params.sort_by = sortBy;
+      params.page = currentPage;
+      params.limit = itemsPerPage;
 
       const response = await api.get('/services/', { params });
       if (response.data && response.data.success) {
         setServices(response.data.services || []);
+        setTotalCount(response.data.total_count || 0);
       } else {
         throw new Error('Failed to fetch services');
       }
@@ -92,7 +184,31 @@ const ServicesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, locationTerm, selectedCategory, maxPrice, minRating, selectedDay]);
+  }, [searchTerm, locationTerm, selectedCategory, maxPrice, minRating, selectedDay, userLat, userLng, searchRadius, sortBy, currentPage, itemsPerPage]);
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLat(latitude);
+        setUserLng(longitude);
+        setCurrentPage(1);
+      },
+      (error) => {
+        alert("Unable to retrieve location. Please pin it manually on the map.");
+      }
+    );
+  };
+
+  const handleSelectMapLocation = (lat, lng) => {
+    setUserLat(lat);
+    setUserLng(lng);
+    setCurrentPage(1);
+  };
 
   useEffect(() => {
     fetchServices();
@@ -160,7 +276,7 @@ const ServicesPage = () => {
             </div>
             {!loading && !error && (
               <p className="text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full font-medium flex-shrink-0">
-                {services.length} service{services.length !== 1 ? 's' : ''} found
+                {totalCount} service{totalCount !== 1 ? 's' : ''} found
               </p>
             )}
           </div>
@@ -168,6 +284,71 @@ const ServicesPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Location selector bar */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+              <MapPin className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Search Coordinate Area</p>
+              <p className="text-sm font-bold text-slate-800">
+                {userLat !== null && userLng !== null ? `Latitude: ${userLat.toFixed(5)}, Longitude: ${userLng.toFixed(5)}` : 'Location not selected'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto justify-end">
+            {userLat !== null && userLng !== null && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500">Radius:</label>
+                <select
+                  value={searchRadius}
+                  onChange={(e) => {
+                    setSearchRadius(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-1.5 border border-slate-200 rounded-xl text-xs bg-slate-50 text-slate-800 focus:outline-none"
+                >
+                  <option value={2}>2 km</option>
+                  <option value={5}>5 km</option>
+                  <option value={10}>10 km</option>
+                  <option value={25}>25 km</option>
+                  <option value={50}>50 km</option>
+                </select>
+              </div>
+            )}
+            
+            <button
+              type="button"
+              onClick={handleLocateMe}
+              className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-xl transition-all"
+            >
+              Locate Me
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsMapModalOpen(true)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all"
+            >
+              Pick on Map
+            </button>
+            {userLat !== null && userLng !== null && (
+              <button
+                type="button"
+                onClick={() => {
+                  setUserLat(null);
+                  setUserLng(null);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl transition-all"
+              >
+                Clear Location
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* ── Search & Filters ── */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 mb-8">
@@ -223,7 +404,7 @@ const ServicesPage = () => {
 
           {/* Advanced Filters */}
           {showFilters && (
-            <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               {/* Category */}
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Category</label>
@@ -276,6 +457,30 @@ const ServicesPage = () => {
                   {WEEKDAYS.map((day) => (
                     <option key={day.value} value={day.value}>{day.label}</option>
                   ))}
+                </select>
+              </div>
+
+              {/* Sort By */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sort By</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"
+                >
+                  <option value="">Default Sort</option>
+                  <option value="price_low_high">Price: Low to High</option>
+                  <option value="price_high_low">Price: High to Low</option>
+                  <option value="rating">Top Rated</option>
+                  {searchTerm && (
+                    <option value="relevance">Relevance</option>
+                  )}
+                  {userLat !== null && userLng !== null && (
+                    <option value="distance">Distance (Near First)</option>
+                  )}
                 </select>
               </div>
             </div>
@@ -361,80 +566,114 @@ const ServicesPage = () => {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {services.map(service => {
-              const initials = service.provider_name
-                ? service.provider_name.trim().split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
-                : 'SP';
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {services.map(service => {
+                const initials = service.provider_name
+                  ? service.provider_name.trim().split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
+                  : 'SP';
 
-              return (
-                <div
-                  key={service.id}
-                  className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col"
-                >
-                  <div className="p-6 flex-1 flex flex-col">
-                    {/* Category + Price */}
-                    <div className="flex justify-between items-start mb-4">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                        {service.category_name}
-                      </span>
-                      <span className="text-base font-extrabold text-blue-700">
-                        ₹{service.price_value}
-                        <span className="text-slate-400 font-normal text-xs">/hr</span>
-                      </span>
-                    </div>
+                return (
+                  <div
+                    key={service.id}
+                    className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col"
+                  >
+                    <div className="p-6 flex-1 flex flex-col">
+                      {/* Category + Price */}
+                      <div className="flex justify-between items-start mb-4">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
+                          {service.category_name}
+                        </span>
+                        <span className="text-base font-extrabold text-blue-700">
+                          ₹{service.price_value}
+                          <span className="text-slate-400 font-normal text-xs">/hr</span>
+                        </span>
+                      </div>
 
-                    {/* Title & Description */}
-                    <h3 className="text-lg font-bold text-slate-900 mb-2 leading-snug line-clamp-2">
-                      {service.title}
-                    </h3>
-                    <p className="text-slate-500 text-sm mb-5 flex-1 line-clamp-2">
-                      {service.description}
-                    </p>
+                      {/* Title & Description */}
+                      <h3 className="text-lg font-bold text-slate-900 mb-2 leading-snug line-clamp-2">
+                        {service.title}
+                      </h3>
+                      <p className="text-slate-500 text-sm mb-5 flex-1 line-clamp-2">
+                        {service.description}
+                      </p>
 
-                    {/* Provider Row */}
-                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {service.provider_image ? (
-                          <img
-                            src={service.provider_image}
-                            alt={service.provider_name}
-                            className="w-8 h-8 rounded-full object-cover border border-slate-200 flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
-                            {initials}
+                      {/* Provider Row */}
+                      <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {service.provider_image ? (
+                            <img
+                              src={service.provider_image}
+                              alt={service.provider_name}
+                              className="w-8 h-8 rounded-full object-cover border border-slate-200 flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                              {initials}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 truncate">{service.provider_name}</p>
+                            <p className="text-[10px] text-slate-400 flex items-center gap-1.5 flex-wrap">
+                              <span className="flex items-center gap-0.5"><MapPin className="h-2.5 w-2.5" />{service.city || '—'}</span>
+                              {service.distance !== undefined && (
+                                <span className="font-bold text-blue-600 bg-blue-50 px-1 rounded">({service.distance} km)</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        {service.average_rating > 0 && (
+                          <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg text-xs font-bold flex-shrink-0">
+                            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                            {Number(service.average_rating).toFixed(1)}
                           </div>
                         )}
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-800 truncate">{service.provider_name}</p>
-                          <p className="text-[10px] text-slate-400 flex items-center gap-0.5">
-                            <MapPin className="h-2.5 w-2.5" />{service.city || '—'}
-                          </p>
-                        </div>
                       </div>
-                      {service.average_rating > 0 && (
-                        <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-lg text-xs font-bold flex-shrink-0">
-                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                          {Number(service.average_rating).toFixed(1)}
-                        </div>
-                      )}
+                    </div>
+
+                    {/* Book Button */}
+                    <div className="px-6 pb-5">
+                      <button
+                        onClick={() => handleBookNow(service)}
+                        className="w-full py-2.5 bg-white hover:bg-blue-600 text-blue-600 hover:text-white font-bold rounded-xl border border-blue-200 hover:border-blue-600 transition-all text-sm shadow-sm"
+                      >
+                        Book This Service
+                      </button>
                     </div>
                   </div>
+                );
+              })}
+            </div>
 
-                  {/* Book Button */}
-                  <div className="px-6 pb-5">
-                    <button
-                      onClick={() => handleBookNow(service)}
-                      className="w-full py-2.5 bg-white hover:bg-blue-600 text-blue-600 hover:text-white font-bold rounded-xl border border-blue-200 hover:border-blue-600 transition-all text-sm shadow-sm"
-                    >
-                      Book This Service
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            {/* Pagination Controls */}
+            {totalCount > itemsPerPage && (
+              <div className="flex items-center justify-between border-t border-slate-200 pt-6 mt-8">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => {
+                    setCurrentPage(prev => Math.max(prev - 1, 1));
+                  }}
+                  className="px-5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 disabled:opacity-50 transition-all"
+                >
+                  Previous
+                </button>
+                <span className="text-sm font-semibold text-slate-500">
+                  Page {currentPage} of {Math.ceil(totalCount / itemsPerPage)}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= Math.ceil(totalCount / itemsPerPage)}
+                  onClick={() => {
+                    setCurrentPage(prev => prev + 1);
+                  }}
+                  className="px-5 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 disabled:opacity-50 transition-all"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -447,6 +686,16 @@ const ServicesPage = () => {
             setSelectedProvider(null);
             alert('Booking placed successfully! Check "My Bookings" in your dashboard.');
           }}
+        />
+      )}
+
+      {/* Map Modal */}
+      {isMapModalOpen && (
+        <MapModal
+          onClose={() => setIsMapModalOpen(false)}
+          onSelect={handleSelectMapLocation}
+          initialLat={userLat}
+          initialLng={userLng}
         />
       )}
     </div>
