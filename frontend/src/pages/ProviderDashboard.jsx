@@ -1,5 +1,6 @@
 // Import React hooks for state management and side effects
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 // Import useAuth context hook to access provider session information
 import { useAuth } from '../context/AuthContext';
 // Import providerService to query dashboard statistics, bookings, and services
@@ -51,9 +52,21 @@ const StatusBadge = ({ status }) => {
 const ProviderDashboard = () => {
   // Extract provider session context variables
   const { user, logout, fetchProfile } = useAuth();
+  const [searchParams] = useSearchParams();
 
+  const tabParam = searchParams.get('tab');
   // Tab navigation selection state
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(
+    tabParam && ['overview', 'bookings', 'services', 'notifications'].includes(tabParam) ? tabParam : 'overview'
+  );
+
+  useEffect(() => {
+    const currentTabParam = searchParams.get('tab');
+    if (currentTabParam && ['overview', 'bookings', 'services', 'notifications'].includes(currentTabParam)) {
+      setActiveTab(currentTabParam);
+    }
+  }, [searchParams]);
+
   // Statistics data object state
   const [stats, setStats] = useState({
     total_bookings: 0,
@@ -63,6 +76,8 @@ const ProviderDashboard = () => {
     cancelled_bookings: 0,
     total_earnings: 0.0
   });
+  // Stats loading state
+  const [statsLoading, setStatsLoading] = useState(false);
 
   // Bookings state variables
   const [bookings, setBookings] = useState([]);
@@ -621,12 +636,12 @@ const ProviderDashboard = () => {
             {/* Booking Statistics Row */}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
               {[
-                { label: 'Total Earnings', val: `₹${stats.total_earnings.toFixed(2)}`, color: 'text-emerald-600', bg: 'bg-emerald-50/50 border-emerald-100' },
-                { label: 'Total Bookings', val: stats.total_bookings, color: 'text-slate-800', bg: 'bg-slate-50 border-slate-100' },
-                { label: 'Pending Bookings', val: stats.pending_bookings, color: 'text-amber-600', bg: 'bg-amber-50/50 border-amber-100' },
-                { label: 'Accepted Bookings', val: stats.accepted_bookings, color: 'text-blue-600', bg: 'bg-blue-50/50 border-blue-100' },
-                { label: 'Completed Bookings', val: stats.completed_bookings, color: 'text-emerald-600', bg: 'bg-emerald-50/50 border-emerald-100' },
-                { label: 'Cancelled Bookings', val: stats.cancelled_bookings, color: 'text-red-500', bg: 'bg-red-50/50 border-red-100' },
+                { label: 'Total Earnings', val: `₹${Number(stats?.total_earnings || 0).toFixed(2)}`, color: 'text-emerald-600', bg: 'bg-emerald-50/50 border-emerald-100' },
+                { label: 'Total Bookings', val: stats?.total_bookings || 0, color: 'text-slate-800', bg: 'bg-slate-50 border-slate-100' },
+                { label: 'Pending Bookings', val: stats?.pending_bookings || 0, color: 'text-amber-600', bg: 'bg-amber-50/50 border-amber-100' },
+                { label: 'Accepted Bookings', val: stats?.accepted_bookings || 0, color: 'text-blue-600', bg: 'bg-blue-50/50 border-blue-100' },
+                { label: 'Completed Bookings', val: stats?.completed_bookings || 0, color: 'text-emerald-600', bg: 'bg-emerald-50/50 border-emerald-100' },
+                { label: 'Cancelled Bookings', val: stats?.cancelled_bookings || 0, color: 'text-red-500', bg: 'bg-red-50/50 border-red-100' },
               ].map((card, idx) => (
                 <div key={idx} className={`p-5 rounded-2xl border ${card.bg} flex flex-col justify-between shadow-sm`}>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{card.label}</p>

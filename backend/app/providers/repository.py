@@ -155,50 +155,64 @@ def get_provider_by_id(provider_id: str):
 
 # Function to get booking statistics and total earnings for a provider
 def get_provider_dashboard_stats(provider_id: str) -> dict:
-    # Count total bookings registered for the provider
-    total_bookings = bookings_collection.count_documents({"provider_id": provider_id})
-    # Count bookings currently in Pending status
-    pending_bookings = bookings_collection.count_documents({"provider_id": provider_id, "booking_status": "Pending"})
-    # Count bookings currently in Accepted status
-    accepted_bookings = bookings_collection.count_documents({"provider_id": provider_id, "booking_status": "Accepted"})
-    # Count bookings currently in Completed status
-    completed_bookings = bookings_collection.count_documents({"provider_id": provider_id, "booking_status": "Completed"})
-    # Count bookings currently in Cancelled status
-    cancelled_bookings = bookings_collection.count_documents({"provider_id": provider_id, "booking_status": "Cancelled"})
-    # Count bookings currently in Rejected status
-    rejected_bookings = bookings_collection.count_documents({"provider_id": provider_id, "booking_status": "Rejected"})
+    from bson import ObjectId
+    prov_ids = [provider_id]
+    if ObjectId.is_valid(provider_id):
+        prov_ids.append(ObjectId(provider_id))
 
-    # Fetch completed bookings to calculate total sum of earnings
-    completed_list = list(bookings_collection.find({"provider_id": provider_id, "booking_status": "Completed"}))
-    # Sum the total_amount values of completed jobs
-    total_earnings = sum(float(b.get("total_amount", 0.0)) for b in completed_list)
+    prov_filter = {"provider_id": {"$in": prov_ids}}
+    total_bookings = bookings_collection.count_documents(prov_filter)
 
-    # Return stats dictionary structure
+    def count_status(status_regex):
+        return bookings_collection.count_documents({
+            "$and": [
+                prov_filter,
+                {"booking_status": {"$regex": f"^{status_regex}$", "$options": "i"}}
+            ]
+        })
+
+    pending_bookings = count_status("Pending")
+    accepted_bookings = count_status("Accepted")
+    completed_bookings = count_status("Completed")
+    cancelled_bookings = count_status("Cancelled")
+    rejected_bookings = count_status("Rejected")
+
+    completed_list = list(bookings_collection.find({
+        "$and": [
+            prov_filter,
+            {"booking_status": {"$regex": "^Completed$", "$options": "i"}}
+        ]
+    }))
+
+    total_earnings = 0.0
+    for b in completed_list:
+        val = b.get("total_amount") or b.get("amount") or b.get("hourly_rate") or b.get("price_value") or b.get("price") or 0.0
+        try:
+            total_earnings += float(val)
+        except (ValueError, TypeError):
+            pass
+
     return {
-        # Total bookings value
         "total_bookings": total_bookings,
-        # Pending count
         "pending_bookings": pending_bookings,
-        # Accepted count
         "accepted_bookings": accepted_bookings,
-        # Completed count
         "completed_bookings": completed_bookings,
-        # Cancelled count (sum of rejected and cancelled statuses)
         "cancelled_bookings": cancelled_bookings + rejected_bookings,
-        # Calculated total earnings value
-        "total_earnings": total_earnings
+        "total_earnings": round(total_earnings, 2)
     }
 
 # Function to get bookings for a provider
 def get_provider_bookings(provider_id: str) -> list:
-    # Find bookings matching provider_id and sort by created_at descending
-    cursor = bookings_collection.find({"provider_id": provider_id}).sort("created_at", -1)
-    # Convert cursor to list of dictionaries
+    from bson import ObjectId
+    prov_ids = [provider_id]
+    if ObjectId.is_valid(provider_id):
+        prov_ids.append(ObjectId(provider_id))
+
+    cursor = bookings_collection.find({"provider_id": {"$in": prov_ids}}).sort("created_at", -1)
     bookings = list(cursor)
-    # Iterate and normalize object IDs
     for b in bookings:
-        # Convert booking _id field
         b["_id"] = str(b["_id"])
+    return bookings
     # Return list
     return bookings
 

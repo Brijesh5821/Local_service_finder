@@ -38,10 +38,19 @@ const Navbar = () => {
     setDropdownOpen(false);
   }, [location.pathname]);
 
+  const isProvider = user && (user?.role || '').toLowerCase() === 'provider';
+
   const navLinks = [
     { name: 'Home', path: '/' },
-    { name: 'Services', path: '/services' },
+    { name: 'Services', path: isProvider ? '/provider-dashboard?tab=services' : '/services' },
   ];
+
+  const isLinkActive = (path) => {
+    if (path.includes('/provider-dashboard?tab=services')) {
+      return location.pathname === '/provider-dashboard' && (location.search.includes('tab=services') || !location.search);
+    }
+    return location.pathname === path && !location.search;
+  };
 
   const handleLogoutClick = () => {
     logout();
@@ -80,7 +89,7 @@ const Navbar = () => {
                 key={link.name}
                 to={link.path}
                 className={`text-sm font-medium transition-colors hover:text-blue-600 relative after:absolute after:bottom-[-2px] after:left-0 after:h-[2px] after:w-0 after:bg-blue-600 after:transition-all after:duration-300 hover:after:w-full pb-1 ${
-                  location.pathname === link.path ? 'text-blue-600 after:w-full' : 'text-slate-600'
+                  isLinkActive(link.path) ? 'text-blue-600 after:w-full' : 'text-slate-600'
                 }`}
               >
                 {link.name}
@@ -189,7 +198,7 @@ const Navbar = () => {
               to={link.path}
               onClick={() => setMobileMenuOpen(false)}
               className={`block px-4 py-3 rounded-xl text-base font-medium transition-colors ${
-                location.pathname === link.path
+                isLinkActive(link.path)
                   ? 'bg-blue-50 text-blue-600'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-blue-600'
               }`}
