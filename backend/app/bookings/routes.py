@@ -65,6 +65,12 @@ def get_current_user_id(authorization: str = Header(...)):
 @router.post("/")
 def create_booking(booking: BookingCreate, user_id: str = Depends(get_current_user_id)):
     try:
+        from bson import ObjectId
+        from app.database.connection import db
+        user_doc = db.users.find_one({"_id": ObjectId(user_id)})
+        if user_doc and user_doc.get("role", "").lower() in ["admin", "system_admin"]:
+            raise HTTPException(status_code=403, detail="Admin users cannot create service bookings.")
+
         booking_doc = controller.create_booking(user_id, booking.model_dump())
         return {"success": True, "message": "Booking created successfully", "booking": booking_doc}
     except ValueError as e:

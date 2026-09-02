@@ -108,7 +108,8 @@ const MapModal = ({ onClose, onSelect, initialLat, initialLng }) => {
 };
 
 const ServicesPage = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const isAdmin = user && ['admin', 'system_admin'].includes(user.role?.toLowerCase());
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -236,6 +237,10 @@ const ServicesPage = () => {
   const hasActiveFilters = searchTerm || locationTerm || selectedCategory || maxPrice || minRating || selectedDay;
 
   const handleBookNow = (service) => {
+    if (isAdmin) {
+      alert('System Admin users cannot create service bookings.');
+      return;
+    }
     if (!isAuthenticated()) {
       navigate('/login');
       return;
@@ -632,14 +637,16 @@ const ServicesPage = () => {
                     </div>
 
                     {/* Book Button */}
-                    <div className="px-6 pb-5">
-                      <button
-                        onClick={() => handleBookNow(service)}
-                        className="w-full py-2.5 bg-white hover:bg-blue-600 text-blue-600 hover:text-white font-bold rounded-xl border border-blue-200 hover:border-blue-600 transition-all text-sm shadow-sm"
-                      >
-                        Book This Service
-                      </button>
-                    </div>
+                    {!isAdmin && (
+                      <div className="px-6 pb-5">
+                        <button
+                          onClick={() => handleBookNow(service)}
+                          className="w-full py-2.5 bg-white hover:bg-blue-600 text-blue-600 hover:text-white font-bold rounded-xl border border-blue-200 hover:border-blue-600 transition-all text-sm shadow-sm"
+                        >
+                          Book This Service
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
