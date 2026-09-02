@@ -636,7 +636,7 @@ const ProviderDashboard = () => {
             {/* Booking Statistics Row */}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
               {[
-                { label: 'Total Earnings', val: `₹${Number(stats?.total_earnings || 0).toFixed(2)}`, color: 'text-emerald-600', bg: 'bg-emerald-50/50 border-emerald-100' },
+                { label: 'Total Earnings', val: `₹{Number(stats?.total_earnings || 0).toFixed(2)}`, color: 'text-emerald-600', bg: 'bg-emerald-50/50 border-emerald-100' },
                 { label: 'Total Bookings', val: stats?.total_bookings || 0, color: 'text-slate-800', bg: 'bg-slate-50 border-slate-100' },
                 { label: 'Pending Bookings', val: stats?.pending_bookings || 0, color: 'text-amber-600', bg: 'bg-amber-50/50 border-amber-100' },
                 { label: 'Accepted Bookings', val: stats?.accepted_bookings || 0, color: 'text-blue-600', bg: 'bg-blue-50/50 border-blue-100' },

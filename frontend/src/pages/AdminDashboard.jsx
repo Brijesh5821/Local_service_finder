@@ -8,6 +8,7 @@ import {
   Briefcase,
   Calendar,
   DollarSign,
+  IndianRupee,
   Search,
   AlertTriangle,
   Trash2,
@@ -98,7 +99,7 @@ const AdminDashboard = () => {
     const isCurrentlySuspended = targetUser.status === 'suspended' || targetUser.is_active === false;
     const actionText = isCurrentlySuspended ? 'activate' : 'suspend';
     
-    if (!window.confirm(`Are you sure you want to ${actionText} the user account for ${targetUser.full_name || targetUser.email}?`)) {
+    if (!window.confirm(`Are you sure you want to ₹{actionText} the user account for ${targetUser.full_name || targetUser.email}?`)) {
       return;
     }
 
@@ -694,11 +695,11 @@ const AdminDashboard = () => {
 
                   <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
                     <div className="bg-rose-50 text-rose-600 p-3.5 rounded-xl">
-                      <DollarSign size={24} />
+                      <IndianRupee size={24} />
                     </div>
                     <div>
                       <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Earnings</p>
-                      <h4 className="text-2xl font-bold text-slate-800 mt-1">${stats.total_earnings.toFixed(2)}</h4>
+                      <h4 className="text-2xl font-bold text-slate-800 mt-1">₹{stats.total_earnings.toFixed(2)}</h4>
                     </div>
                   </div>
                 </div>
@@ -725,7 +726,7 @@ const AdminDashboard = () => {
                           <div key={status}>
                             <div className="flex justify-between text-sm font-semibold text-slate-700 mb-1.5">
                               <span className="flex items-center gap-2">
-                                <span className={`w-2.5 h-2.5 rounded-full ${colorClass}`}></span>
+                                <span className={`w-2.5 h-2.5 rounded-full ₹{colorClass}`}></span>
                                 {status}
                               </span>
                               <span>{count} ({percentage}%)</span>
