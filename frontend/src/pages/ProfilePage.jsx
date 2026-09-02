@@ -152,15 +152,15 @@ const ProfilePage = () => {
           email: data.user.email || '',
           phone: data.user.phone || '',
           profile_image: data.user.profile_image || '',
-          gender: data.user.gender || 'Male',
+          gender: data.user.gender || '',
           address: data.user.address || '',
           city: data.user.city || '',
           state: data.user.state || '',
           pincode: data.user.pincode || '',
           provider_category: data.user.provider_category || '',
-          experience: data.user.experience || '',
+          experience: data.user.experience !== null && data.user.experience !== undefined ? data.user.experience : '',
           description: data.user.description || '',
-          hourly_rate: data.user.hourly_rate || '',
+          hourly_rate: data.user.hourly_rate !== null && data.user.hourly_rate !== undefined ? data.user.hourly_rate : '',
           latitude: data.user.latitude || '',
           longitude: data.user.longitude || '',
           service_radius: data.user.service_radius || '',
@@ -203,7 +203,7 @@ const ProfilePage = () => {
         email: profile.email || '',
         phone: profile.phone || '',
         profile_image: profile.profile_image || '',
-        gender: profile.gender || 'Male',
+        gender: profile.gender || '',
         address: profile.address || '',
         city: profile.city || '',
         state: profile.state || '',
@@ -418,6 +418,7 @@ const ProfilePage = () => {
                     disabled={!isEditing}
                     value={formData.full_name} 
                     onChange={handleChange}
+                    placeholder="Enter your full name"
                     className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
@@ -434,6 +435,7 @@ const ProfilePage = () => {
                     disabled={!isEditing}
                     value={formData.email} 
                     onChange={handleChange}
+                    placeholder="Enter your email address"
                     className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
@@ -450,6 +452,7 @@ const ProfilePage = () => {
                     disabled={!isEditing}
                     value={formData.phone} 
                     onChange={handleChange}
+                    placeholder="Enter your 10-digit phone number"
                     className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
@@ -465,9 +468,11 @@ const ProfilePage = () => {
                   onChange={handleChange}
                   className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
+                  <option value="">Select gender</option>
                   <option value="Male">Male</option>
                   <option value="Female">Female</option>
                   <option value="Other">Other</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
                 </select>
               </div>
 
@@ -525,6 +530,7 @@ const ProfilePage = () => {
                     disabled={!isEditing}
                     value={formData.address} 
                     onChange={handleChange}
+                    placeholder="Enter your street address"
                     className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
@@ -539,6 +545,7 @@ const ProfilePage = () => {
                   disabled={!isEditing}
                   value={formData.city} 
                   onChange={handleChange}
+                  placeholder="Enter your city"
                   className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
@@ -552,6 +559,7 @@ const ProfilePage = () => {
                   disabled={!isEditing}
                   value={formData.state} 
                   onChange={handleChange}
+                  placeholder="Enter your state"
                   className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
@@ -565,6 +573,7 @@ const ProfilePage = () => {
                   disabled={!isEditing}
                   value={formData.pincode} 
                   onChange={handleChange}
+                  placeholder="Enter your 6-digit pincode"
                   className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
               </div>
@@ -593,7 +602,7 @@ const ProfilePage = () => {
                       onChange={handleChange}
                       className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     >
-                      <option value="">Select Category</option>
+                      <option value="">Select service category</option>
                       {categories.map((cat) => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
@@ -609,6 +618,7 @@ const ProfilePage = () => {
                       disabled={!isEditing}
                       value={formData.experience} 
                       onChange={handleChange}
+                      placeholder="Enter years of experience"
                       className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     />
                   </div>
@@ -622,6 +632,7 @@ const ProfilePage = () => {
                       disabled={!isEditing}
                       value={formData.hourly_rate} 
                       onChange={handleChange}
+                      placeholder="Enter hourly rate"
                       className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     />
                   </div>
@@ -634,7 +645,7 @@ const ProfilePage = () => {
                       step="any"
                       name="latitude" 
                       disabled={!isEditing}
-                      placeholder="e.g. 23.0225"
+                      placeholder="Enter latitude (e.g. 23.0225)"
                       value={formData.latitude} 
                       onChange={handleChange}
                       className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -649,7 +660,7 @@ const ProfilePage = () => {
                       step="any"
                       name="longitude" 
                       disabled={!isEditing}
-                      placeholder="e.g. 72.5714"
+                      placeholder="Enter longitude (e.g. 72.5714)"
                       value={formData.longitude} 
                       onChange={handleChange}
                       className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -663,7 +674,7 @@ const ProfilePage = () => {
                       type="number" 
                       name="service_radius" 
                       disabled={!isEditing}
-                      placeholder="e.g. 15"
+                      placeholder="Enter service radius in km"
                       value={formData.service_radius} 
                       onChange={handleChange}
                       className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
@@ -705,6 +716,7 @@ const ProfilePage = () => {
                       value={formData.description} 
                       onChange={handleChange}
                       rows="4"
+                      placeholder="Describe your service and experience"
                       className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     />
                   </div>

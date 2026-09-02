@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import BookingModal from '../components/BookingModal';
 
 const CATEGORIES = [
-  { label: 'All Categories', value: '' },
+  { label: 'Select service category', value: '' },
   { label: 'Plumber', value: 'Plumber' },
   { label: 'Electrician', value: 'Electrician' },
   { label: 'Cleaning', value: 'Cleaning' },
@@ -358,7 +358,7 @@ const ServicesPage = () => {
               <Search className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search services, e.g. AC Repair, Cleaning…"
+                placeholder="Search services..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm"
@@ -370,7 +370,7 @@ const ServicesPage = () => {
               <MapPin className="absolute left-3.5 top-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="City or area…"
+                placeholder="Enter city"
                 value={locationTerm}
                 onChange={(e) => setLocationTerm(e.target.value)}
                 className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-sm"
@@ -424,7 +424,7 @@ const ServicesPage = () => {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Max Price (₹/hr)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 500"
+                  placeholder="Enter max price"
                   value={maxPrice}
                   onChange={(e) => setMaxPrice(e.target.value)}
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-700"

@@ -1654,7 +1654,7 @@ const AdminDashboard = () => {
                 <textarea
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="e.g. Could not verify business address, experience documents missing, etc."
+                  placeholder="Enter rejection reason"
                   className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
                 />
               </div>
@@ -1711,7 +1711,7 @@ const AdminDashboard = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Plumber, Appliance Repair"
+                  placeholder="Enter category name"
                   value={categoryForm.category_name}
                   onChange={(e) => setCategoryForm(prev => ({ ...prev, category_name: e.target.value }))}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
@@ -1723,7 +1723,7 @@ const AdminDashboard = () => {
                   Description
                 </label>
                 <textarea
-                  placeholder="Describe category services..."
+                  placeholder="Enter category description"
                   value={categoryForm.description}
                   onChange={(e) => setCategoryForm(prev => ({ ...prev, description: e.target.value }))}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px] text-slate-800 resize-none"
@@ -1736,7 +1736,7 @@ const AdminDashboard = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. plumber, ac_repair"
+                  placeholder="Enter icon name"
                   value={categoryForm.icon}
                   onChange={(e) => setCategoryForm(prev => ({ ...prev, icon: e.target.value }))}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"

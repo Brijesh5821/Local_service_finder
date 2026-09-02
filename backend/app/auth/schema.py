@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List, Dict, Any
 
 class RegisterRequest(BaseModel):
-    full_name: str = Field(..., min_length=3, max_length=100)
+    full_name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
     phone: str = Field(..., min_length=10, max_length=20)
     password: str = Field(..., min_length=8)
@@ -32,28 +32,63 @@ class RegisterRequest(BaseModel):
     @classmethod
     def validate_full_name(cls, v: str) -> str:
         cleaned = v.strip()
-        if len(cleaned) < 3:
-            raise ValueError("Full name must be at least 3 characters long.")
-        if not re.search(r"[a-zA-Z]", cleaned):
-            raise ValueError("Full name must contain letters.")
+        if len(cleaned) < 2:
+            raise ValueError("Full name must be at least 2 characters long.")
+        if not re.match(r"^[a-zA-Z\s]+$", cleaned):
+            raise ValueError("Full name must contain letters only.")
         return cleaned
 
     @field_validator('phone')
     @classmethod
     def validate_phone(cls, v: str) -> str:
         cleaned = v.strip().replace(" ", "").replace("-", "")
-        # Allow 10 digits or international format (+919876543210 etc.)
-        if not re.match(r"^(\+?\d{1,4})?\d{10}$", cleaned):
-            raise ValueError("Please provide a valid 10-digit phone number.")
+        if not re.match(r"^\d{10}$", cleaned):
+            raise ValueError("Please enter a valid 10-digit phone number.")
         return cleaned
+
+    @field_validator('gender')
+    @classmethod
+    def validate_gender(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v.strip():
+            cleaned = v.strip()
+            allowed = ["Male", "Female", "Other", "Prefer not to say"]
+            if cleaned not in allowed:
+                raise ValueError("Please select your gender.")
+            return cleaned
+        return v
+
+    @field_validator('city', 'state')
+    @classmethod
+    def validate_city_state(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v.strip():
+            cleaned = v.strip()
+            if not re.match(r"^[a-zA-Z\s]+$", cleaned):
+                raise ValueError("City and State must contain letters and spaces only.")
+            return cleaned
+        return v
+
+    @field_validator('pincode')
+    @classmethod
+    def validate_pincode(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v.strip():
+            cleaned = v.strip()
+            if not re.match(r"^\d{6}$", cleaned):
+                raise ValueError("Please enter a valid 6-digit pincode.")
+            return cleaned
+        return v
 
     @field_validator('role')
     @classmethod
     def validate_role(cls, v: str) -> str:
-        normalized = v.strip().capitalize()
-        if normalized not in ["User", "Provider"]:
+        normalized = v.strip().lower()
+        if normalized in ["admin", "superadmin", "administrator"]:
+            raise ValueError("Public registration as Admin is not permitted.")
+        if normalized in ["user", "customer"]:
+            return "User"
+        elif normalized == "provider":
+            return "Provider"
+        else:
             raise ValueError("Registration is only permitted for 'User' or 'Provider' roles.")
-        return normalized
 
     @field_validator('password')
     @classmethod
@@ -67,8 +102,15 @@ class RegisterRequest(BaseModel):
     @field_validator('hourly_rate')
     @classmethod
     def validate_hourly_rate(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v < 0:
-            raise ValueError("Hourly rate must be a positive number.")
+        if v is not None and v <= 0:
+            raise ValueError("Hourly rate must be a positive number greater than 0.")
+        return v
+
+    @field_validator('experience')
+    @classmethod
+    def validate_experience(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and (v < 0 or v > 60):
+            raise ValueError("Years of experience must be between 0 and 60.")
         return v
 
 

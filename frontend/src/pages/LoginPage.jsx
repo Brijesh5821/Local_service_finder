@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, MapPin, ArrowRight, ShieldCheck } from 'lucide-react';
 import { authService } from '../services/authService';
 import { useAuth } from '../context/AuthContext';
+import { validateEmail } from '../utils/validation';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -12,19 +13,34 @@ const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (fieldErrors[e.target.name]) {
+      setFieldErrors(prev => ({ ...prev, [e.target.name]: '' }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    const errors = {};
+    const emailRes = validateEmail(formData.email);
+    if (!emailRes.isValid) errors.email = emailRes.error;
+    if (!formData.password) errors.password = 'Password is required.';
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await authService.login({
-        email: formData.email,
+        email: formData.email.trim(),
         password: formData.password
       });
 
@@ -96,7 +112,7 @@ const LoginPage = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
 
               {/* Email */}
               <div>
@@ -114,10 +130,15 @@ const LoginPage = () => {
                     value={formData.email}
                     onChange={handleChange}
                     required
-                    placeholder="you@example.com"
-                    className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-sm"
+                    placeholder="Enter your email address"
+                    className={`block w-full pl-11 pr-4 py-3 bg-slate-50 border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:bg-white transition-all text-sm ${
+                      fieldErrors.email ? 'border-red-400 focus:ring-red-400' : 'border-slate-200 focus:ring-blue-500'
+                    }`}
                   />
                 </div>
+                {fieldErrors.email && (
+                  <p className="text-xs text-red-500 mt-1 font-medium">{fieldErrors.email}</p>
+                )}
               </div>
 
               {/* Password */}
@@ -141,8 +162,10 @@ const LoginPage = () => {
                     value={formData.password}
                     onChange={handleChange}
                     required
-                    placeholder="••••••••"
-                    className="block w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-sm"
+                    placeholder="Enter your password"
+                    className={`block w-full pl-11 pr-12 py-3 bg-slate-50 border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:bg-white transition-all text-sm ${
+                      fieldErrors.password ? 'border-red-400 focus:ring-red-400' : 'border-slate-200 focus:ring-blue-500'
+                    }`}
                   />
                   <button
                     type="button"
@@ -152,6 +175,9 @@ const LoginPage = () => {
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
+                {fieldErrors.password && (
+                  <p className="text-xs text-red-500 mt-1 font-medium">{fieldErrors.password}</p>
+                )}
               </div>
 
               {/* Remember me */}

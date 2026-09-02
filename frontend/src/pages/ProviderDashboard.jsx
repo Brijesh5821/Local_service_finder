@@ -1140,7 +1140,7 @@ const ProviderDashboard = () => {
                     type="text"
                     value={serviceForm.title}
                     onChange={(e) => setServiceForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="e.g. Standard Sink Leak Repair"
+                    placeholder="Enter service name"
                     className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1153,7 +1153,7 @@ const ProviderDashboard = () => {
                     onChange={(e) => setServiceForm(prev => ({ ...prev, category_name: e.target.value }))}
                     className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Select Category</option>
+                    <option value="">Select service category</option>
                     {dynamicCategories.map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
@@ -1182,7 +1182,7 @@ const ProviderDashboard = () => {
                       type="number"
                       value={serviceForm.price_value}
                       onChange={(e) => setServiceForm(prev => ({ ...prev, price_value: e.target.value }))}
-                      placeholder="e.g. 150"
+                      placeholder="Enter price"
                       className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -1190,12 +1190,12 @@ const ProviderDashboard = () => {
 
                 {/* City Location */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Service City</label>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Service Location</label>
                   <input
                     type="text"
                     value={serviceForm.city}
                     onChange={(e) => setServiceForm(prev => ({ ...prev, city: e.target.value }))}
-                    placeholder="e.g. Surendranagar"
+                    placeholder="Enter service location"
                     className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1206,7 +1206,7 @@ const ProviderDashboard = () => {
                   <textarea
                     value={serviceForm.description}
                     onChange={(e) => setServiceForm(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Describe service details, pricing variables, and included tasks..."
+                    placeholder="Describe your service"
                     rows="4"
                     className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />

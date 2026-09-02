@@ -366,7 +366,7 @@ const BookingModal = ({ provider, onClose, onSuccess }) => {
                     onChange={handleChange}
                     required
                     rows={2}
-                    placeholder="Enter your full address..."
+                    placeholder="Enter service address"
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                   />
                 </div>
@@ -383,7 +383,7 @@ const BookingModal = ({ provider, onClose, onSuccess }) => {
                     value={form.notes}
                     onChange={handleChange}
                     rows={2}
-                    placeholder="Any specific requirements or instructions..."
+                    placeholder="Add any special instructions or requirements"
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                   />
                 </div>

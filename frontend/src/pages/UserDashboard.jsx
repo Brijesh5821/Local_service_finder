@@ -638,7 +638,7 @@ const UserDashboard = () => {
                   <MapPin className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="City..."
+                    placeholder="Enter city"
                     value={filterCity}
                     onChange={e => setFilterCity(e.target.value)}
                     className="w-full sm:w-40 pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
@@ -669,7 +669,7 @@ const UserDashboard = () => {
                     <label className="block text-xs font-semibold text-slate-500 mb-1">Max Hourly Rate (₹)</label>
                     <input
                       type="number"
-                      placeholder="e.g. 500"
+                      placeholder="Enter max price"
                       value={maxPrice}
                       onChange={e => { setMaxPrice(e.target.value); setCurrentPage(1); }}
                       className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
@@ -1099,7 +1099,7 @@ const UserDashboard = () => {
                   required
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Tell us what you liked or how they can improve..."
+                  placeholder="Write your review"
                   rows="4"
                   className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-800"
                 />
@@ -1281,7 +1281,7 @@ const UserDashboard = () => {
                   maxLength={1000}
                   value={reviewText}
                   onChange={(e) => setReviewText(e.target.value)}
-                  placeholder="Describe your experience with this service provider..."
+                  placeholder="Write your review"
                   className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-800 resize-none transition-all"
                 />
                 <p className="text-[11px] text-slate-400 text-right mt-1">{reviewText.length}/1000 characters</p>
