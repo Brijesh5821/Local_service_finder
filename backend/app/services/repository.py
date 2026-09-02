@@ -62,6 +62,15 @@ def get_services(name: str = None, category: str = None, city: str = None,
 
     services = list(services_collection.find(query))
     
+    # Exclude services from suspended, rejected, or non-approved providers
+    users_collection = db["users"]
+    approved_providers = list(users_collection.find(
+        {"role": {"$in": ["Provider", "provider"]}, "account_status": "approved"},
+        {"_id": 1}
+    ))
+    approved_provider_ids = set(str(u["_id"]) for u in approved_providers)
+    services = [s for s in services if s.get("provider_id") in approved_provider_ids]
+
     # Process distances and service area boundaries
     processed = []
     for s in services:

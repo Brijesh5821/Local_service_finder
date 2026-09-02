@@ -19,6 +19,9 @@ const BookingModal = ({ provider, onClose, onSuccess }) => {
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
 
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+
   useEffect(() => {
     const fetchReviews = async () => {
       if (!provider?.id) return;
@@ -39,33 +42,70 @@ const BookingModal = ({ provider, onClose, onSuccess }) => {
 
   const [dateError, setDateError] = useState('');
 
+  const fetchTimeSlots = async (selectedDate) => {
+    if (!selectedDate || !provider?.id) return;
+    setSlotsLoading(true);
+    setForm(prev => ({ ...prev, booking_time: '' }));
+    try {
+      const res = await bookingService.getAvailableSlots(provider.id, provider.service_id, selectedDate);
+      if (res.success) {
+        setAvailableSlots(res.slots || []);
+      } else {
+        setAvailableSlots([]);
+      }
+    } catch (err) {
+      console.error("Error fetching available time slots:", err);
+      setAvailableSlots([]);
+    } finally {
+      setSlotsLoading(false);
+    }
+  };
+
   const handleDateChange = (e) => {
     const selectedDate = e.target.value;
     setDateError('');
+    setAvailableSlots([]);
     
     if (provider?.holidays && provider.holidays.includes(selectedDate)) {
       setDateError('Provider is on holiday/unavailable on this date.');
-      setForm({ ...form, booking_date: selectedDate });
+      setForm({ ...form, booking_date: selectedDate, booking_time: '' });
       return;
     }
 
     if (selectedDate) {
       try {
-        const dateObj = new Date(selectedDate);
+        const dateObj = new Date(selectedDate + 'T00:00:00');
         const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const selectedDayName = weekdays[dateObj.getDay()];
+        const capitalizedDay = selectedDayName.charAt(0).toUpperCase() + selectedDayName.slice(1);
         
-        const availability = provider?.availability || {};
-        if (!availability[selectedDayName] || availability[selectedDayName].length === 0) {
-          const capitalizedDay = selectedDayName.charAt(0).toUpperCase() + selectedDayName.slice(1);
-          setDateError(`Provider does not offer services on ${capitalizedDay}s.`);
+        const availability = provider?.availability;
+        let dayAvailable = false;
+
+        if (Array.isArray(availability)) {
+          const dayConfig = availability.find(d => d.day && d.day.toLowerCase() === selectedDayName);
+          if (dayConfig && dayConfig.slots && dayConfig.slots.length > 0) {
+            dayAvailable = true;
+          }
+        } else if (availability && typeof availability === 'object') {
+          if (availability[selectedDayName] && availability[selectedDayName].length > 0) {
+            dayAvailable = true;
+          }
+        } else {
+          dayAvailable = true;
+        }
+
+        if (!dayAvailable) {
+          setDateError(`Service is not available on ${capitalizedDay}s.`);
+        } else {
+          fetchTimeSlots(selectedDate);
         }
       } catch (err) {
         console.error(err);
       }
     }
     
-    setForm({ ...form, booking_date: selectedDate });
+    setForm({ ...form, booking_date: selectedDate, booking_time: '' });
   };
 
   const handleChange = (e) => {
@@ -92,7 +132,7 @@ const BookingModal = ({ provider, onClose, onSuccess }) => {
     }
 
     if (!form.booking_time) {
-      setError('Please select a booking time.');
+      setError('Please select an available booking time slot.');
       return;
     }
 
@@ -111,7 +151,7 @@ const BookingModal = ({ provider, onClose, onSuccess }) => {
     try {
       await bookingService.createBooking({
         provider_id: provider.id,
-        service_id: null,
+        service_id: provider.service_id || null,
         booking_date: form.booking_date,
         booking_time: form.booking_time,
         booking_address: form.booking_address,
@@ -338,20 +378,74 @@ const BookingModal = ({ provider, onClose, onSuccess }) => {
                   )}
                 </div>
 
-                {/* Time */}
+                {/* Time / Slots Selection */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    <Clock className="inline h-4 w-4 mr-1 text-blue-500" />
-                    Booking Time
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>
+                      <Clock className="inline h-4 w-4 mr-1 text-blue-500" />
+                      Available Time Slots
+                    </span>
+                    {form.booking_time && (
+                      <span className="text-xs text-blue-600 font-bold">Selected: {form.booking_time}</span>
+                    )}
                   </label>
-                  <input
-                    type="time"
-                    name="booking_time"
-                    value={form.booking_time}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
+
+                  {!form.booking_date ? (
+                    <p className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-xl border border-slate-200">
+                      Please select a booking date above to view available time slots.
+                    </p>
+                  ) : slotsLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-500 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      Loading available slots...
+                    </div>
+                  ) : availableSlots.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {availableSlots.map((slot, idx) => {
+                        const isSelected = form.booking_time === slot.startTime || form.booking_time === slot.label;
+                        const isAvailable = slot.available;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            disabled={!isAvailable}
+                            onClick={() => {
+                              if (isAvailable) {
+                                setForm(prev => ({ ...prev, booking_time: slot.startTime }));
+                              }
+                            }}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-between ${
+                              !isAvailable
+                                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed line-through opacity-75'
+                                : isSelected
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-blue-500 hover:bg-blue-50/50'
+                            }`}
+                          >
+                            <span>{slot.label}</span>
+                            <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                              !isAvailable
+                                ? 'bg-slate-200 text-slate-500'
+                                : isSelected
+                                ? 'bg-blue-700 text-white'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}>
+                              {!isAvailable ? 'BOOKED' : isSelected ? 'SELECTED' : 'AVAILABLE'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <input
+                      type="time"
+                      name="booking_time"
+                      value={form.booking_time}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  )}
                 </div>
 
                 {/* Address */}

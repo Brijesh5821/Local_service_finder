@@ -25,6 +25,7 @@ class ServiceCreateRequest(BaseModel):
     price_value: float = Field(..., gt=0.0, le=100000.0)
     status: Optional[str] = "active"
     city: Optional[str] = Field(None, max_length=100)
+    availability: Optional[Any] = None
 
     @field_validator('title')
     @classmethod
@@ -60,6 +61,7 @@ class ServiceUpdateRequest(BaseModel):
     price_value: Optional[float] = Field(None, gt=0.0, le=100000.0)
     status: Optional[str] = None
     city: Optional[str] = Field(None, max_length=100)
+    availability: Optional[Any] = None
 
     @field_validator('title')
     @classmethod

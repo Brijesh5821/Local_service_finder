@@ -40,4 +40,15 @@ export const bookingService = {
       throw new Error(error.response?.data?.detail || 'Failed to reschedule booking');
     }
   },
+
+  getAvailableSlots: async (providerId, serviceId, date) => {
+    try {
+      const params = { provider_id: providerId, date };
+      if (serviceId) params.service_id = serviceId;
+      const res = await api.get('/bookings/slots', { params });
+      return res.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.detail || 'Failed to fetch available time slots');
+    }
+  },
 };

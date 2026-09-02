@@ -268,9 +268,9 @@ const ProfilePage = () => {
         if (setUser && response.user) {
           setUser((prev) => ({
             ...prev,
+            ...response.user,
             full_name: response.user.full_name || prev?.full_name,
             email: response.user.email || prev?.email,
-            profile_image: response.user.profile_image,
           }));
         }
       } else {

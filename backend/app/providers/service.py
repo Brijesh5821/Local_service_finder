@@ -1,5 +1,6 @@
 # Import providers repository functions for database operations
 from app.providers import repository
+import re
 # Import exception class to raise error responses
 from fastapi import HTTPException
 # Import db connection to perform auxiliary lookups
@@ -336,13 +337,46 @@ def create_provider_service(provider_id: str, data: dict) -> dict:
     provider_name = provider.get("full_name", "Service Pro")
     # Get provider profile image
     provider_image = provider.get("profile_image", "")
-    # Get provider availability config
-    provider_availability = provider.get("availability")
+    # Get provider availability config or service-specific availability
+    service_availability = data.get("availability") if data.get("availability") is not None else provider.get("availability")
     
+    # Clean service title
+    service_title = data["title"].strip()
+    
+    # Check if this provider already has a service with the exact same title
+    services_col = db["services"]
+    existing_service = services_col.find_one({
+        "provider_id": provider_id,
+        "title": {"$regex": f"^{re.escape(service_title)}$", "$options": "i"}
+    })
+
+    if existing_service:
+        # Update the existing service instead of creating a duplicate
+        update_payload = {
+            "title": service_title,
+            "description": data["description"],
+            "category_name": data["category_name"],
+            "provider_name": provider_name,
+            "provider_image": provider_image,
+            "price": data["price"],
+            "price_value": float(data["price_value"]),
+            "status": data.get("status") or "active",
+            "city": data.get("city") or provider.get("city") or "Surendranagar",
+            "availability": service_availability,
+            "latitude": provider.get("latitude"),
+            "longitude": provider.get("longitude"),
+            "service_radius": provider.get("service_radius"),
+            "location": provider.get("location")
+        }
+        services_col.update_one({"_id": existing_service["_id"]}, {"$set": update_payload})
+        updated = services_col.find_one({"_id": existing_service["_id"]})
+        updated["_id"] = str(updated["_id"])
+        return updated
+
     # Construct complete service document dictionary structure
     service_doc = {
         # Set service title field
-        "title": data["title"],
+        "title": service_title,
         # Set description
         "description": data["description"],
         # Set category name
@@ -357,14 +391,19 @@ def create_provider_service(provider_id: str, data: dict) -> dict:
         "price": data["price"],
         # Set price numeric value
         "price_value": float(data["price_value"]),
-        # Set service status — new services await admin approval before going public
-        "status": "pending_approval",
+        # Set service status — default to active for approved providers
+        "status": data.get("status") or "active",
         # Set default rating for new services
         "average_rating": provider.get("average_rating") or 4.5,
         # Set city, fallback to provider's city if not specified
         "city": data.get("city") or provider.get("city") or "Surendranagar",
-        # Copy weekly availability calendar mapping
-        "availability": provider_availability,
+        # Copy provider location coordinates and service radius
+        "latitude": provider.get("latitude"),
+        "longitude": provider.get("longitude"),
+        "service_radius": provider.get("service_radius"),
+        "location": provider.get("location"),
+        # Set availability calendar mapping
+        "availability": service_availability,
         # Set creation timestamp
         "created_at": datetime.utcnow()
     }
@@ -372,7 +411,7 @@ def create_provider_service(provider_id: str, data: dict) -> dict:
     # Save the service document to database using repository call
     new_id = repository.create_service(service_doc)
     # Add string ID back to the return document representation
-    service_doc["_id"] = new_id
+    service_doc["_id"] = str(new_id)
     # Return created service details
     return service_doc
 

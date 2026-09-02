@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 
 const AuthContext = createContext(null);
@@ -23,22 +23,16 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   // Fetch full profile from backend to get latest full_name etc.
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       const res = await api.get('/users/profile');
       if (res.data?.success && res.data?.user) {
         const u = res.data.user;
         setUser((prev) => ({
           ...prev,
+          ...u,
           full_name: u.full_name || prev?.full_name || '',
           email: u.email || prev?.email || '',
-          phone: u.phone,
-          profile_image: u.profile_image,
-          city: u.city,
-          address: u.address,
-          gender: u.gender,
-          state: u.state,
-          pincode: u.pincode,
           role: u.role ? u.role.toLowerCase() : prev?.role || 'user',
           account_status: u.account_status ? u.account_status.toLowerCase() : prev?.account_status || 'approved',
         }));
@@ -46,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     } catch {
       // silently fail – token-based data is already set
     }
-  };
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -61,9 +55,9 @@ export const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
-  }, []);
+  }, [fetchProfile]);
 
-  const login = async (token) => {
+  const login = useCallback(async (token) => {
     localStorage.setItem('token', token);
     const parsed = parseToken(token);
     if (parsed) {
@@ -75,15 +69,9 @@ export const AuthProvider = ({ children }) => {
           const u = res.data.user;
           setUser({
             ...parsed,
+            ...u,
             full_name: u.full_name || parsed.full_name,
             email: u.email || parsed.email,
-            phone: u.phone,
-            profile_image: u.profile_image,
-            city: u.city,
-            address: u.address,
-            gender: u.gender,
-            state: u.state,
-            pincode: u.pincode,
             role: u.role ? u.role.toLowerCase() : parsed.role,
             account_status: u.account_status ? u.account_status.toLowerCase() : parsed.account_status,
           });
@@ -92,12 +80,12 @@ export const AuthProvider = ({ children }) => {
         // Use token payload data as fallback
       }
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem('token');
-  };
+  }, []);
 
   const getToken = () => localStorage.getItem('token');
   const isAuthenticated = () => !!user;

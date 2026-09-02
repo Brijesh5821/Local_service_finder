@@ -16,7 +16,7 @@ services_collection = db["services"]
 # Reference the bookings collection in database
 bookings_collection = db["bookings"]
 
-def validate_provider_availability(provider_id: str, booking_date: str, booking_time: str, customer_id: str) -> str:
+def validate_provider_availability(provider_id: str, booking_date: str, booking_time: str, customer_id: str, service_id: str = None) -> str:
     provider = users_collection.find_one({"_id": ObjectId(provider_id)})
     if not provider:
         return "Provider not found."
@@ -34,28 +34,73 @@ def validate_provider_availability(provider_id: str, booking_date: str, booking_
         from datetime import datetime
         dt = datetime.strptime(booking_date, "%Y-%m-%d")
         weekday_name = dt.strftime("%A").lower()
+        full_day_name = dt.strftime("%A")
     except Exception:
         return "Invalid booking date format. Use YYYY-MM-DD."
         
-    availability = provider.get("availability") or {}
-    if weekday_name not in availability or not availability[weekday_name]:
-        return f"Provider does not work on {dt.strftime('%A')}s."
-        
+    # Check if a specific service is being booked with service-level availability
+    service_avail = None
+    if service_id:
+        try:
+            srv = services_collection.find_one({"_id": ObjectId(service_id)})
+            if srv and srv.get("availability"):
+                service_avail = srv.get("availability")
+        except Exception:
+            pass
+
     time_slot_valid = False
+
     try:
         booking_minutes = int(booking_time.split(":")[0]) * 60 + int(booking_time.split(":")[1])
-        for slot in availability[weekday_name]:
-            start_str, end_str = slot.split("-")
-            start_min = int(start_str.split(":")[0]) * 60 + int(start_str.split(":")[1])
-            end_min = int(end_str.split(":")[0]) * 60 + int(end_str.split(":")[1])
-            if start_min <= booking_minutes <= end_min:
-                time_slot_valid = True
-                break
     except Exception:
-        return "Invalid booking time or working hours format."
-        
-    if not time_slot_valid:
-        return f"Selected time {booking_time} is outside provider's working hours on {dt.strftime('%A')}."
+        return "Invalid booking time format. Use HH:MM."
+
+    if service_avail and isinstance(service_avail, list) and len(service_avail) > 0:
+        # Service availability is configured as a list of day objects
+        day_config = next((d for d in service_avail if isinstance(d, dict) and d.get("day", "").lower() == weekday_name), None)
+        if not day_config or not day_config.get("slots"):
+            return f"Service is not offered on {full_day_name}s."
+            
+        for slot in day_config.get("slots", []):
+            if isinstance(slot, dict):
+                start_str = slot.get("startTime") or slot.get("start_time")
+                end_str = slot.get("endTime") or slot.get("end_time")
+                if start_str and end_str:
+                    s_min = int(start_str.split(":")[0]) * 60 + int(start_str.split(":")[1])
+                    e_min = int(end_str.split(":")[0]) * 60 + int(end_str.split(":")[1])
+                    if s_min <= booking_minutes <= e_min:
+                        time_slot_valid = True
+                        break
+            elif isinstance(slot, str) and "-" in slot:
+                start_str, end_str = slot.split("-")
+                s_min = int(start_str.split(":")[0]) * 60 + int(start_str.split(":")[1])
+                e_min = int(end_str.split(":")[0]) * 60 + int(end_str.split(":")[1])
+                if s_min <= booking_minutes <= e_min:
+                    time_slot_valid = True
+                    break
+
+        if not time_slot_valid:
+            return f"Selected time {booking_time} is outside the service's available hours on {full_day_name}."
+
+    else:
+        # Fall back to provider-level availability
+        availability = provider.get("availability") or {}
+        if weekday_name not in availability or not availability[weekday_name]:
+            return f"Provider does not work on {full_day_name}s."
+            
+        try:
+            for slot in availability[weekday_name]:
+                start_str, end_str = slot.split("-")
+                start_min = int(start_str.split(":")[0]) * 60 + int(start_str.split(":")[1])
+                end_min = int(end_str.split(":")[0]) * 60 + int(end_str.split(":")[1])
+                if start_min <= booking_minutes <= end_min:
+                    time_slot_valid = True
+                    break
+        except Exception:
+            return "Invalid booking time or working hours format."
+            
+        if not time_slot_valid:
+            return f"Selected time {booking_time} is outside provider's working hours on {full_day_name}."
         
     conflict = bookings_collection.find_one({
         "provider_id": provider_id,
@@ -85,10 +130,11 @@ def validate_provider_availability(provider_id: str, booking_date: str, booking_
 # Service function to handle booking creation
 def create_booking(customer_id: str, booking_data: dict) -> dict:
     provider_id = booking_data.get("provider_id")
+    service_id = booking_data.get("service_id")
     booking_date = booking_data.get("booking_date")
     booking_time = booking_data.get("booking_time")
     
-    err = validate_provider_availability(provider_id, booking_date, booking_time, customer_id)
+    err = validate_provider_availability(provider_id, booking_date, booking_time, customer_id, service_id=service_id)
     if err:
         raise ValueError(err)
 

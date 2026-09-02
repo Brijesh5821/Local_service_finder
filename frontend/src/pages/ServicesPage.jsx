@@ -247,10 +247,15 @@ const ServicesPage = () => {
     }
     setSelectedProvider({
       id: service.provider_id,
+      service_id: service.id,
       full_name: service.provider_name,
       profile_image: service.provider_image,
       hourly_rate: service.price_value,
       provider_category: service.category_name,
+      availability: service.availability,
+      title: service.title,
+      city: service.city,
+      description: service.description
     });
   };
 

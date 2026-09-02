@@ -13,7 +13,7 @@ import { downloadCSV } from '../utils/csvExporter';
 import {
   Bell, Briefcase, Calendar, Clock, Edit,
   Loader2, MapPin, Plus, RefreshCw, Trash2, X,
-  CheckCircle, AlertCircle, Power, User, Download
+  CheckCircle, AlertCircle, Power, User, Download, Star
 } from 'lucide-react';
 
 // Define the static list of categories matching the database categories
@@ -50,7 +50,7 @@ const StatusBadge = ({ status }) => {
 // Main ProviderDashboard page component
 const ProviderDashboard = () => {
   // Extract provider session context variables
-  const { user, logout } = useAuth();
+  const { user, logout, fetchProfile } = useAuth();
 
   // Tab navigation selection state
   const [activeTab, setActiveTab] = useState('overview');
@@ -98,7 +98,8 @@ const ProviderDashboard = () => {
     price: '$$',
     price_value: '',
     city: '',
-    status: 'active'
+    status: 'active',
+    availability: []
   });
   // Service modal API call loading status
   const [serviceFormLoading, setServiceFormLoading] = useState(false);
@@ -205,6 +206,8 @@ const ProviderDashboard = () => {
 
   // UseEffect hook to fetch all database records on page load
   useEffect(() => {
+    // Fetch user profile
+    if (fetchProfile) fetchProfile();
     // Fetch stats
     fetchStats();
     // Fetch bookings
@@ -215,7 +218,7 @@ const ProviderDashboard = () => {
     fetchNotifications();
     // Fetch dynamic categories from admin API
     fetchCategories();
-  }, [fetchStats, fetchBookings, fetchServices, fetchNotifications, fetchCategories]);
+  }, [fetchProfile, fetchStats, fetchBookings, fetchServices, fetchNotifications, fetchCategories]);
 
   const handleExportBookings = () => {
     const headers = ['Booking ID', 'Customer Name', 'Customer Phone', 'Service Name', 'Booking Date', 'Time Slot', 'Address', 'Amount (₹)', 'Booking Status', 'Payment Status'];
@@ -236,6 +239,8 @@ const ProviderDashboard = () => {
 
   // Method to refresh all page details
   const handleRefreshAll = () => {
+    // Refresh user profile
+    if (fetchProfile) fetchProfile();
     // Refresh stats
     fetchStats();
     // Refresh bookings
@@ -295,6 +300,72 @@ const ProviderDashboard = () => {
     }
   };
 
+  const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+  const handleToggleDayAvailability = (dayName) => {
+    setServiceForm(prev => {
+      const currentAvail = Array.isArray(prev.availability) ? prev.availability : [];
+      const exists = currentAvail.some(d => d.day === dayName);
+      let updated;
+      if (exists) {
+        updated = currentAvail.filter(d => d.day !== dayName);
+      } else {
+        updated = [...currentAvail, { day: dayName, slots: [{ startTime: "09:00", endTime: "17:00" }] }];
+      }
+      return { ...prev, availability: updated };
+    });
+  };
+
+  const handleAddSlotToDay = (dayName) => {
+    setServiceForm(prev => {
+      const currentAvail = Array.isArray(prev.availability) ? prev.availability : [];
+      const updated = currentAvail.map(d => {
+        if (d.day === dayName) {
+          const lastSlot = d.slots && d.slots.length > 0 ? d.slots[d.slots.length - 1] : { startTime: "09:00", endTime: "17:00" };
+          return {
+            ...d,
+            slots: [...(d.slots || []), { startTime: lastSlot.endTime || "09:00", endTime: "18:00" }]
+          };
+        }
+        return d;
+      });
+      return { ...prev, availability: updated };
+    });
+  };
+
+  const handleRemoveSlotFromDay = (dayName, slotIndex) => {
+    setServiceForm(prev => {
+      const currentAvail = Array.isArray(prev.availability) ? prev.availability : [];
+      const updated = currentAvail.map(d => {
+        if (d.day === dayName) {
+          const newSlots = d.slots.filter((_, idx) => idx !== slotIndex);
+          return { ...d, slots: newSlots };
+        }
+        return d;
+      }).filter(d => d.slots.length > 0);
+      return { ...prev, availability: updated };
+    });
+  };
+
+  const handleUpdateSlotTime = (dayName, slotIndex, field, value) => {
+    setServiceForm(prev => {
+      const currentAvail = Array.isArray(prev.availability) ? prev.availability : [];
+      const updated = currentAvail.map(d => {
+        if (d.day === dayName) {
+          const newSlots = d.slots.map((s, idx) => {
+            if (idx === slotIndex) {
+              return { ...s, [field]: value };
+            }
+            return s;
+          });
+          return { ...d, slots: newSlots };
+        }
+        return d;
+      });
+      return { ...prev, availability: updated };
+    });
+  };
+
   // Method to trigger CRUD services updates
   const handleServiceFormSubmit = async (e) => {
     // Prevent default submit reload
@@ -303,25 +374,72 @@ const ProviderDashboard = () => {
     setServiceFormError('');
 
     // Client-side validations
-    if (!serviceForm.title.trim()) {
-      // Set title error
+    const titleCleaned = (serviceForm.title || '').trim();
+    if (!titleCleaned) {
       setServiceFormError('Service title is required.');
       return;
     }
-    if (!serviceForm.description.trim()) {
-      // Set description error
+    if (titleCleaned.length < 3) {
+      setServiceFormError('Service title must be at least 3 characters long.');
+      return;
+    }
+
+    const descCleaned = (serviceForm.description || '').trim();
+    if (!descCleaned) {
       setServiceFormError('Service description is required.');
       return;
     }
+    if (descCleaned.length < 10) {
+      setServiceFormError('Service description must be at least 10 characters long.');
+      return;
+    }
+
     if (!serviceForm.category_name) {
-      // Set category error
       setServiceFormError('Please select a category.');
       return;
     }
     if (!serviceForm.price_value || isNaN(Number(serviceForm.price_value)) || Number(serviceForm.price_value) <= 0) {
-      // Set price value error
       setServiceFormError('Please enter a valid numeric price value.');
       return;
+    }
+
+    // Availability validation
+    if (!serviceForm.availability || !Array.isArray(serviceForm.availability) || serviceForm.availability.length === 0) {
+      setServiceFormError('Please select at least one working day and time slot for service availability.');
+      return;
+    }
+
+    for (const dayObj of serviceForm.availability) {
+      if (!dayObj.slots || dayObj.slots.length === 0) {
+        setServiceFormError(`Please add at least one time slot for ${dayObj.day}.`);
+        return;
+      }
+      const sortedSlots = [];
+      for (let i = 0; i < dayObj.slots.length; i++) {
+        const slot = dayObj.slots[i];
+        if (!slot.startTime || !slot.endTime) {
+          setServiceFormError(`Please specify both start time and end time for slot ${i + 1} on ${dayObj.day}.`);
+          return;
+        }
+        const [startH, startM] = slot.startTime.split(':').map(Number);
+        const [endH, endM] = slot.endTime.split(':').map(Number);
+        const startMins = startH * 60 + startM;
+        const endMins = endH * 60 + endM;
+
+        if (endMins <= startMins) {
+          setServiceFormError(`End time must be later than start time for slot ${i + 1} on ${dayObj.day}.`);
+          return;
+        }
+
+        // Check for overlaps on the same day
+        for (const existing of sortedSlots) {
+          if (startMins < existing.endMins && endMins > existing.startMins) {
+            setServiceFormError(`Time slots overlap on ${dayObj.day} (${slot.startTime}–${slot.endTime}). Please adjust slot times.`);
+            return;
+          }
+        }
+        sortedSlots.push({ startMins, endMins });
+      }
     }
 
     // Set service loader to true
@@ -338,7 +456,8 @@ const ProviderDashboard = () => {
         price: serviceForm.price,
         price_value: parseFloat(serviceForm.price_value),
         city: serviceForm.city || undefined,
-        status: serviceForm.status
+        status: serviceForm.status,
+        availability: serviceForm.availability
       };
 
       // Call API based on add or edit mode
@@ -529,38 +648,74 @@ const ProviderDashboard = () => {
                 </div>
                 {/* Profile fields content grid */}
                 <div className="space-y-4">
+                  {/* Overall Rating */}
+                  <div>
+                    <span className="text-xs font-semibold text-slate-400 block uppercase mb-1">Overall Rating</span>
+                    {user?.average_rating !== undefined && user?.average_rating !== null ? (
+                      <div className="flex items-center gap-1.5 text-sm font-extrabold text-amber-700 bg-amber-50 px-3 py-1 rounded-xl w-fit border border-amber-200">
+                        <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                        <span>{Number(user.average_rating).toFixed(1)}</span>
+                        <span className="text-xs font-normal text-amber-600">
+                          ({user.total_reviews || 0} {user.total_reviews === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 text-xs italic">No reviews yet</span>
+                    )}
+                  </div>
+
                   {/* Category Field */}
                   <div>
                     <span className="text-xs font-semibold text-slate-400 block uppercase">Category</span>
                     <span className="font-bold text-slate-800 text-sm">{user?.provider_category || 'Not Configured'}</span>
                   </div>
+
                   {/* Experience Field */}
                   <div>
                     <span className="text-xs font-semibold text-slate-400 block uppercase">Experience</span>
-                    <span className="font-bold text-slate-800 text-sm">{user?.experience ? `${user.experience} Years` : 'Not Configured'}</span>
+                    <span className="font-bold text-slate-800 text-sm">
+                      {user?.experience !== null && user?.experience !== undefined && user?.experience !== '' ? `${user.experience} years` : 'Not Configured'}
+                    </span>
                   </div>
+
                   {/* Hourly Rate Field */}
                   <div>
                     <span className="text-xs font-semibold text-slate-400 block uppercase">Hourly Rate</span>
                     <span className="font-extrabold text-blue-700 text-sm">
-                      {user?.hourly_rate ? `₹${user.hourly_rate}/hr` : 'Not Configured'}
+                      {user?.hourly_rate !== null && user?.hourly_rate !== undefined && user?.hourly_rate !== '' ? `₹${user.hourly_rate}/hr` : 'Not Configured'}
                     </span>
                   </div>
+
                   {/* City Location Field */}
                   <div>
                     <span className="text-xs font-semibold text-slate-400 block uppercase">Service City</span>
                     <span className="font-bold text-slate-800 text-sm">{user?.city || 'Not Configured'}</span>
                   </div>
+
                   {/* Availability Slots display */}
                   <div>
-                    <span className="text-xs font-semibold text-slate-400 block uppercase mb-1">Availability Slots</span>
-                    {user?.availability ? (
-                      <div className="flex flex-wrap gap-1.5 mt-1">
-                        {Object.keys(user.availability).map(day => (
-                          <span key={day} className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded capitalize">
-                            {day}: {user.availability[day].join(', ')}
-                          </span>
-                        ))}
+                    <span className="text-xs font-semibold text-slate-400 block uppercase mb-2">Availability Slots</span>
+                    {user?.availability && Object.keys(user.availability).length > 0 ? (
+                      <div className="space-y-1.5 mt-1">
+                        {Object.entries(user.availability).map(([day, slots]) => {
+                          let formattedSlots = null;
+                          if (Array.isArray(slots) && slots.length > 0) {
+                            formattedSlots = slots.join(', ');
+                          } else if (typeof slots === 'string' && slots.trim()) {
+                            formattedSlots = slots;
+                          } else if (slots && typeof slots === 'object') {
+                            if (slots.available !== false && slots.start_time && slots.end_time) {
+                              formattedSlots = `${slots.start_time} - ${slots.end_time}`;
+                            }
+                          }
+                          if (!formattedSlots) return null;
+                          return (
+                            <div key={day} className="flex justify-between items-center bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl text-xs">
+                              <span className="font-bold text-slate-700 capitalize">{day}</span>
+                              <span className="font-semibold text-blue-600">{formattedSlots}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <span className="text-slate-400 text-xs italic">No weekly slots configured</span>
@@ -889,6 +1044,19 @@ const ProviderDashboard = () => {
                           <MapPin className="h-3 w-3" /> {service.city}
                         </p>
                       )}
+                      {/* Service Availability summary */}
+                      {service.availability && Array.isArray(service.availability) && service.availability.length > 0 && (
+                        <div className="mt-3 pt-2 border-t border-slate-100">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Availability</span>
+                          <div className="flex flex-wrap gap-1">
+                            {service.availability.map((d) => (
+                              <span key={d.day} className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-100">
+                                {d.day.slice(0, 3)}: {d.slots ? d.slots.map(s => `${s.startTime || s.start_time}-${s.endTime || s.end_time}`).join(', ') : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-5 border-t border-slate-100 pt-4 flex justify-between items-center">
@@ -918,7 +1086,8 @@ const ProviderDashboard = () => {
                               price: service.price,
                               price_value: service.price_value,
                               city: service.city || '',
-                              status: service.status
+                              status: service.status,
+                              availability: service.availability || []
                             });
                             // Clear form errors
                             setServiceFormError('');
@@ -1207,9 +1376,100 @@ const ProviderDashboard = () => {
                     value={serviceForm.description}
                     onChange={(e) => setServiceForm(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="Describe your service"
-                    rows="4"
+                    rows="3"
                     className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
+                </div>
+
+                {/* Service Availability Section */}
+                <div className="pt-3 border-t border-slate-100">
+                  <label className="block text-xs font-extrabold text-slate-800 mb-1 uppercase tracking-wider">
+                    Service Availability
+                  </label>
+                  <p className="text-[11px] text-slate-500 mb-3">
+                    Configure the days and time slots when clients can book this service.
+                  </p>
+
+                  {/* Day selection buttons */}
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {WEEKDAYS.map((dayName) => {
+                      const isSelected = (serviceForm.availability || []).some(d => d.day === dayName);
+                      return (
+                        <button
+                          key={dayName}
+                          type="button"
+                          onClick={() => handleToggleDayAvailability(dayName)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                            isSelected
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {dayName.slice(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Selected Days Time Slots */}
+                  {(!serviceForm.availability || serviceForm.availability.length === 0) ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
+                      Select working days above to configure booking time slots.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {WEEKDAYS.filter(dayName => (serviceForm.availability || []).some(d => d.day === dayName)).map(dayName => {
+                        const dayObj = serviceForm.availability.find(d => d.day === dayName);
+                        return (
+                          <div key={dayName} className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-extrabold text-xs text-slate-800 uppercase tracking-wide">
+                                {dayName}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleAddSlotToDay(dayName)}
+                                className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 hover:underline"
+                              >
+                                + Add Time Slot
+                              </button>
+                            </div>
+
+                            {/* Slots list */}
+                            <div className="space-y-2">
+                              {(dayObj.slots || []).map((slot, idx) => (
+                                <div key={idx} className="flex items-center gap-2 bg-white p-2 border border-slate-200 rounded-xl text-xs">
+                                  <span className="text-[10px] font-bold text-slate-400">Slot {idx + 1}:</span>
+                                  <input
+                                    type="time"
+                                    value={slot.startTime || "09:00"}
+                                    onChange={(e) => handleUpdateSlotTime(dayName, idx, 'startTime', e.target.value)}
+                                    className="px-2 py-1 border border-slate-200 bg-slate-50 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  <span className="text-slate-400 font-bold">to</span>
+                                  <input
+                                    type="time"
+                                    value={slot.endTime || "17:00"}
+                                    onChange={(e) => handleUpdateSlotTime(dayName, idx, 'endTime', e.target.value)}
+                                    className="px-2 py-1 border border-slate-200 bg-slate-50 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  />
+                                  {dayObj.slots.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveSlotFromDay(dayName, idx)}
+                                      className="ml-auto text-red-500 hover:text-red-700 text-[11px] font-bold px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -1,5 +1,6 @@
 import logging
-from fastapi import APIRouter, Header, HTTPException, Depends
+from typing import Optional
+from fastapi import APIRouter, Header, HTTPException, Depends, Query
 from jose import jwt, JWTError
 from app.bookings import controller
 from app.bookings.schema import BookingCreate, BookingReschedule
@@ -90,6 +91,118 @@ def get_my_bookings(user_id: str = Depends(get_current_user_id)):
     except Exception as e:
         logger.error(f"Error fetching bookings for user {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve bookings. Please try again later.")
+
+
+@router.get("/slots")
+def get_available_time_slots(
+    provider_id: str = Query(...),
+    service_id: Optional[str] = Query(None),
+    date: str = Query(...)
+):
+    try:
+        from datetime import datetime
+        from bson import ObjectId
+        from app.database.connection import db
+
+        try:
+            dt = datetime.strptime(date, "%Y-%m-%d")
+            weekday_name = dt.strftime("%A").lower()
+            full_day_name = dt.strftime("%A")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+        users_col = db["users"]
+        services_col = db["services"]
+        bookings_col = db["bookings"]
+
+        provider = users_col.find_one({"_id": ObjectId(provider_id)}) if ObjectId.is_valid(provider_id) else None
+        if not provider:
+            raise HTTPException(status_code=404, detail="Provider not found")
+
+        holidays = provider.get("holidays") or []
+        if date in holidays:
+            return {"success": True, "date": date, "day": full_day_name, "is_holiday": True, "slots": []}
+
+        # Retrieve availability configuration from service or provider
+        availability = None
+        if service_id and ObjectId.is_valid(service_id):
+            srv = services_col.find_one({"_id": ObjectId(service_id)})
+            if srv and srv.get("availability"):
+                availability = srv.get("availability")
+
+        if not availability:
+            availability = provider.get("availability") or []
+
+        # Parse configured slots for weekday_name
+        configured_slots = []
+
+        if isinstance(availability, list):
+            day_config = next((d for d in availability if isinstance(d, dict) and d.get("day", "").lower() == weekday_name), None)
+            if day_config and day_config.get("slots"):
+                for s in day_config["slots"]:
+                    if isinstance(s, dict):
+                        start_time = s.get("startTime") or s.get("start_time")
+                        end_time = s.get("endTime") or s.get("end_time")
+                        if start_time and end_time:
+                            configured_slots.append({"startTime": start_time, "endTime": end_time})
+                    elif isinstance(s, str) and "-" in s:
+                        parts = s.split("-")
+                        configured_slots.append({"startTime": parts[0].strip(), "endTime": parts[1].strip()})
+        elif isinstance(availability, dict):
+            if weekday_name in availability:
+                for s in availability[weekday_name]:
+                    if isinstance(s, str) and "-" in s:
+                        parts = s.split("-")
+                        configured_slots.append({"startTime": parts[0].strip(), "endTime": parts[1].strip()})
+
+        # Fetch existing active bookings for this date and provider/service
+        query_filter = {
+            "provider_id": provider_id,
+            "booking_date": date,
+            "booking_status": {"$in": ["Pending", "Accepted"]}
+        }
+
+        existing_bookings = list(bookings_col.find(query_filter))
+        booked_times = set(b.get("booking_time") for b in existing_bookings if b.get("booking_time"))
+
+        def format_12h(t_str):
+            try:
+                parts = t_str.split(":")
+                h = int(parts[0])
+                m = parts[1]
+                ampm = "AM" if h < 12 else "PM"
+                disp_h = h % 12 or 12
+                return f"{disp_h:02d}:{m} {ampm}"
+            except Exception:
+                return t_str
+
+        result_slots = []
+        for slot in configured_slots:
+            s_time = slot["startTime"]
+            e_time = slot["endTime"]
+            label = f"{format_12h(s_time)} - {format_12h(e_time)}"
+            
+            # Slot is unavailable if s_time or label is booked
+            is_booked = (s_time in booked_times) or (label in booked_times)
+            result_slots.append({
+                "startTime": s_time,
+                "endTime": e_time,
+                "label": label,
+                "available": not is_booked
+            })
+
+        return {
+            "success": True,
+            "date": date,
+            "day": full_day_name,
+            "is_holiday": False,
+            "slots": result_slots
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting available slots: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to calculate available time slots.")
 
 
 @router.patch("/{booking_id}/cancel")

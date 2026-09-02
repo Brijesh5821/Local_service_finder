@@ -21,4 +21,29 @@ api.interceptors.request.use(
   }
 );
 
+// Response interceptor for API calls to normalize error messages
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.data && error.response.data.detail) {
+      const detail = error.response.data.detail;
+      if (Array.isArray(detail)) {
+        error.response.data.detail = detail
+          .map((item) => {
+            if (typeof item === 'string') return item;
+            if (item && item.msg) {
+              const field = item.loc && item.loc.length > 0 ? item.loc[item.loc.length - 1] : '';
+              return field ? `${field}: ${item.msg}` : item.msg;
+            }
+            return JSON.stringify(item);
+          })
+          .join(' | ');
+      } else if (typeof detail === 'object' && detail !== null) {
+        error.response.data.detail = detail.msg || detail.message || JSON.stringify(detail);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
