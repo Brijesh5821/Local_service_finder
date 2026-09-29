@@ -32,5 +32,17 @@ export const reviewService = {
     } catch (error) {
       return { success: false };
     }
+  },
+
+  getRecentReviews: async (limit = 3) => {
+    try {
+      const response = await api.get('/reviews/', { params: { limit } });
+      return response.data;
+    } catch (error) {
+      if (error.response?.data) {
+        throw new Error(error.response.data.detail || 'Failed to fetch reviews');
+      }
+      throw new Error('Network error or server unreachable');
+    }
   }
 };

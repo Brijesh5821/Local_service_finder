@@ -28,6 +28,13 @@ def add_review(review: ReviewCreate, user_id: str = Depends(get_current_user_id)
     res["id"] = str(res.pop("_id", None))
     return {"success": True, "message": "Review submitted successfully", "review": res}
 
+@router.get("/")
+def get_recent_reviews(limit: int = 6):
+    reviews = controller.get_recent_reviews(limit)
+    for r in reviews:
+        r["id"] = str(r.pop("_id", None))
+    return {"success": True, "reviews": reviews}
+
 @router.get("/provider/{provider_id}")
 def get_reviews_by_provider(provider_id: str):
     reviews = controller.get_reviews_by_provider(provider_id)

@@ -1,3 +1,4 @@
+import re
 # Import db from connection settings
 from app.database.connection import db
 # Import ObjectId from bson to convert string representations of MongoDB IDs
@@ -22,43 +23,171 @@ def calculate_haversine_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return round(R * c, 2)
 
+def parse_time_to_minutes(time_str: str) -> int:
+    if not time_str:
+        return 0
+    clean = time_str.strip().upper()
+    for fmt in ("%H:%M", "%I:%M %p", "%I:%M%p", "%I %p"):
+        try:
+            dt = datetime.strptime(clean, fmt)
+            return dt.hour * 60 + dt.minute
+        except ValueError:
+            pass
+    try:
+        is_pm = "PM" in clean
+        is_am = "AM" in clean
+        raw = clean.replace("AM", "").replace("PM", "").strip()
+        parts = raw.split(":")
+        h = int(parts[0])
+        m = int(parts[1][:2]) if len(parts) > 1 else 0
+        if is_pm and h < 12:
+            h += 12
+        if is_am and h == 12:
+            h = 0
+        return h * 60 + m
+    except Exception:
+        return 0
+
+
+def is_provider_available_at_time(provider: dict, date_str: str, req_start_min: int, req_end_min: int) -> bool:
+    # 1. Check holidays
+    holidays = provider.get("holidays") or []
+    if date_str in holidays:
+        return False
+
+    # 2. Check weekly schedule (if configured on provider)
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        weekday = dt.strftime("%A").lower()
+    except Exception:
+        return False
+
+    avail = provider.get("availability")
+    if avail and isinstance(avail, dict):
+        if weekday in avail:
+            day_slots = avail[weekday]
+            if not day_slots:
+                # Explicitly empty list means provider is not working on this weekday
+                return False
+            
+            # Check if requested range fits inside at least one working slot
+            slot_fits = False
+            for slot in day_slots:
+                if isinstance(slot, str) and "-" in slot:
+                    s_str, e_str = slot.split("-")
+                    s_min = parse_time_to_minutes(s_str)
+                    e_min = parse_time_to_minutes(e_str)
+                    if s_min <= req_start_min and req_end_min <= e_min:
+                        slot_fits = True
+                        break
+                elif isinstance(slot, dict):
+                    s_str = slot.get("startTime") or slot.get("start_time")
+                    e_str = slot.get("endTime") or slot.get("end_time")
+                    if s_str and e_str:
+                        s_min = parse_time_to_minutes(s_str)
+                        e_min = parse_time_to_minutes(e_str)
+                        if s_min <= req_start_min and req_end_min <= e_min:
+                            slot_fits = True
+                            break
+            if not slot_fits:
+                return False
+
+    # 3. Check booking conflicts on that date
+    prov_id_str = str(provider["_id"])
+    id_list = [prov_id_str]
+    try:
+        id_list.append(ObjectId(prov_id_str))
+    except Exception:
+        pass
+
+    conflicting_bookings = list(bookings_collection.find({
+        "provider_id": {"$in": id_list},
+        "booking_date": date_str,
+        "booking_status": {"$in": ["Pending", "Accepted", "Confirmed", "pending", "accepted", "confirmed"]}
+    }))
+
+    for b in conflicting_bookings:
+        b_time = b.get("booking_time", "")
+        if not b_time:
+            continue
+            
+        if " - " in b_time:
+            parts = b_time.split(" - ")
+            b_start = parse_time_to_minutes(parts[0])
+            b_end = parse_time_to_minutes(parts[1])
+        else:
+            b_start = parse_time_to_minutes(b_time)
+            b_end = b_start + 60  # Default 1 hour slot if single timestamp given
+
+        # Overlap condition: max(req_start, b_start) < min(req_end, b_end)
+        if max(req_start_min, b_start) < min(req_end_min, b_end):
+            return False
+
+    return True
+
+
 # Existing repository function to list providers with filters
 def get_providers(name: str = None, category: str = None, city: str = None,
                   min_price: float = None, max_price: float = None,
                   min_rating: float = None, availability: str = None,
+                  date: str = None, start_time: str = None, end_time: str = None,
                   lat: float = None, lng: float = None, radius: float = 10.0,
                   sort_by: str = None, page: int = 1, limit: int = 10):
-    # Base query filters for finding users who have the role of provider
-    query = {"role": {"$in": ["Provider", "provider"]}}
+    # Base query filters for finding users who have the role of provider and are approved
+    query = {
+        "role": {"$in": ["Provider", "provider"]},
+        "$or": [
+            {"account_status": "approved"},
+            {"account_status": {"$exists": False}, "status": "active"}
+        ]
+    }
 
     # Apply name query filter using regex
-    if name:
-        # Match name case-insensitively
-        query["full_name"] = {"$regex": name, "$options": "i"}
+    if name and name.strip():
+        query["full_name"] = {"$regex": name.strip(), "$options": "i"}
+        
     # Apply category query filter using regex
-    if category:
-        # Match provider category case-insensitively
-        query["provider_category"] = {"$regex": category, "$options": "i"}
+    if category and category.strip() and category.strip() != "All Categories":
+        cat_clean = category.strip()
+        # Find provider IDs from services collection that offer this category
+        matching_srv_prov_ids = services_collection.distinct(
+            "provider_id",
+            {"$or": [
+                {"category": {"$regex": f"^{re.escape(cat_clean)}$", "$options": "i"}},
+                {"category_name": {"$regex": f"^{re.escape(cat_clean)}$", "$options": "i"}}
+            ]}
+        )
+        prov_obj_ids = []
+        for p_id in matching_srv_prov_ids:
+            if isinstance(p_id, str):
+                try:
+                    prov_obj_ids.append(ObjectId(p_id))
+                except Exception:
+                    pass
+            prov_obj_ids.append(p_id)
+
+        query["$and"] = [
+            {"$or": [
+                {"provider_category": {"$regex": f"^{re.escape(cat_clean)}$", "$options": "i"}},
+                {"_id": {"$in": prov_obj_ids}}
+            ]}
+        ]
+
     # Apply city filter using regex
-    if city:
-        # Match city case-insensitively
-        query["city"] = {"$regex": city, "$options": "i"}
+    if city and city.strip():
+        query["city"] = {"$regex": city.strip(), "$options": "i"}
     # Apply minimum price constraint
     if min_price is not None:
-        # Set greater-than-or-equal hourly rate filter
         query.setdefault("hourly_rate", {})["$gte"] = min_price
     # Apply maximum price constraint
     if max_price is not None:
-        # Set less-than-or-equal hourly rate filter
         query.setdefault("hourly_rate", {})["$lte"] = max_price
     # Apply minimum rating constraint
     if min_rating is not None:
-        # Set rating filter
         query["average_rating"] = {"$gte": min_rating}
     # Apply weekday availability constraint
-    if availability:
-        # Check if availability weekday key has non-empty list of slots
-        query[f"availability.{availability.lower()}"] = {"$exists": True, "$ne": [], "$not": {"$size": 0}}
+    if availability and availability.strip():
+        query[f"availability.{availability.lower().strip()}"] = {"$exists": True, "$ne": [], "$not": {"$size": 0}}
 
     # MongoDB Geo-Near index filter
     if lat is not None and lng is not None:
@@ -86,7 +215,6 @@ def get_providers(name: str = None, category: str = None, city: str = None,
             dist = calculate_haversine_distance(float(lat), float(lng), float(p_lat), float(p_lng))
             p["distance"] = dist
             
-            # Enforce Service Area
             p_radius = p.get("service_radius")
             if p_radius is not None:
                 if dist <= float(p_radius):
@@ -98,6 +226,20 @@ def get_providers(name: str = None, category: str = None, city: str = None,
                 processed.append(p)
                 
     providers = processed
+
+    # Apply Date + Time Slot filtering if date is provided
+    if date and date.strip():
+        date_clean = date.strip()
+        req_start_min = parse_time_to_minutes(start_time) if start_time else 0
+        req_end_min = parse_time_to_minutes(end_time) if end_time else 1440
+        if req_end_min <= req_start_min:
+            req_end_min = req_start_min + 60  # Default 1 hr duration fallback if invalid
+
+        available_providers = []
+        for p in providers:
+            if is_provider_available_at_time(p, date_clean, req_start_min, req_end_min):
+                available_providers.append(p)
+        providers = available_providers
 
     # Sorting
     if sort_by == "price_low_high":
@@ -136,6 +278,24 @@ def get_providers(name: str = None, category: str = None, city: str = None,
         "page": page,
         "limit": limit
     }
+
+def get_categories() -> list:
+    """Returns all unique category names dynamically from the database."""
+    cat_docs = list(db["categories"].find({"is_active": {"$ne": False}}, {"category_name": 1, "_id": 0}))
+    categories = [c["category_name"] for c in cat_docs if c.get("category_name")]
+    
+    prov_cats = users_collection.distinct("provider_category", {"role": {"$in": ["Provider", "provider"]}})
+    for pc in prov_cats:
+        if pc and pc not in categories:
+            categories.append(pc)
+            
+    srv_cats = services_collection.distinct("category_name")
+    for sc in srv_cats:
+        if sc and sc not in categories:
+            categories.append(sc)
+
+    return sorted(categories)
+
 
 # Existing repository function to find a provider by string ID
 def get_provider_by_id(provider_id: str):

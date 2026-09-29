@@ -6,9 +6,10 @@ import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
 
 const ProfilePage = () => {
-  const { setUser } = useAuth();
+  const { user, setUser } = useAuth();
   const [profile, setProfile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const isAdmin = (profile?.role || user?.role || '').toLowerCase().includes('admin');
   const [loading, setLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
   const [error, setError] = useState('');
@@ -338,30 +339,32 @@ const ProfilePage = () => {
                   </div>
                 )}
                 
-                <div className="absolute -bottom-1 -right-1 flex items-center gap-1">
-                  <label className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full cursor-pointer shadow-md transition-all hover:scale-105" title={formData.profile_image ? "Replace Photo" : "Upload Photo"}>
-                    {imageUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                    <input 
-                      type="file" 
-                      accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                      onChange={handleProfileImageUpload}
-                      className="hidden"
-                      disabled={imageUploading}
-                    />
-                  </label>
+                {!isAdmin && (
+                  <div className="absolute -bottom-1 -right-1 flex items-center gap-1">
+                    <label className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full cursor-pointer shadow-md transition-all hover:scale-105" title={formData.profile_image ? "Replace Photo" : "Upload Photo"}>
+                      {imageUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                      <input 
+                        type="file" 
+                        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                        onChange={handleProfileImageUpload}
+                        className="hidden"
+                        disabled={imageUploading}
+                      />
+                    </label>
 
-                  {formData.profile_image && (
-                    <button
-                      type="button"
-                      onClick={handleProfileImageRemove}
-                      disabled={imageUploading}
-                      className="bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-full cursor-pointer shadow-md transition-all hover:scale-105"
-                      title="Remove Photo"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
+                    {formData.profile_image && (
+                      <button
+                        type="button"
+                        onClick={handleProfileImageRemove}
+                        disabled={imageUploading}
+                        className="bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-full cursor-pointer shadow-md transition-all hover:scale-105"
+                        title="Remove Photo"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="text-center sm:text-left">
@@ -377,7 +380,7 @@ const ProfilePage = () => {
               </div>
             </div>
 
-            {!isEditing ? (
+            {!isAdmin && (!isEditing ? (
               <button 
                 onClick={() => setIsEditing(true)}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl transition-all shadow-md hover:shadow-lg text-sm"
@@ -393,7 +396,7 @@ const ProfilePage = () => {
                   <X className="h-4 w-4" /> Cancel
                 </button>
               </div>
-            )}
+            ))}
 
           </div>
         </div>
@@ -405,180 +408,218 @@ const ProfilePage = () => {
           <div className="bg-white rounded-3xl border border-slate-200 shadow-md p-6 sm:p-8">
             <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4 mb-6">Personal & Contact Info</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Full Name */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">Full Name</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
-                  <input 
-                    type="text" 
-                    name="full_name" 
-                    disabled={!isEditing}
-                    value={formData.full_name} 
-                    onChange={handleChange}
-                    placeholder="Enter your full name"
-                    className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
+            {isAdmin ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Full Name</p>
+                  <p className="text-base font-bold text-slate-900">{formData.full_name || 'N/A'}</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Email Address</p>
+                  <p className="text-base font-bold text-slate-900">{formData.email || 'N/A'}</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Phone Number</p>
+                  <p className="text-base font-bold text-slate-900">{formData.phone || 'N/A'}</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Gender</p>
+                  <p className="text-base font-bold text-slate-900">{formData.gender || 'N/A'}</p>
                 </div>
               </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
-                  <input 
-                    type="email" 
-                    name="email" 
-                    disabled={!isEditing}
-                    value={formData.email} 
-                    onChange={handleChange}
-                    placeholder="Enter your email address"
-                    className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Phone Number */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">Phone Number</label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
-                  <input 
-                    type="tel" 
-                    name="phone" 
-                    disabled={!isEditing}
-                    value={formData.phone} 
-                    onChange={handleChange}
-                    placeholder="Enter your 10-digit phone number"
-                    className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Gender */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">Gender</label>
-                <select 
-                  name="gender" 
-                  disabled={!isEditing}
-                  value={formData.gender} 
-                  onChange={handleChange}
-                  className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                >
-                  <option value="">Select gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                  <option value="Prefer not to say">Prefer not to say</option>
-                </select>
-              </div>
-
-              {/* Profile Photo File Picker */}
-              {isEditing && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-600 mb-2">Profile Photo</label>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <label className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl text-sm cursor-pointer transition-all">
-                      {imageUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                      {imageUploading ? 'Uploading...' : (formData.profile_image ? 'Replace Photo' : 'Choose Photo')}
-                      <input 
-                        type="file" 
-                        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                        onChange={handleProfileImageUpload}
-                        className="hidden"
-                        disabled={imageUploading}
-                      />
-                    </label>
-
-                    {formData.profile_image && (
-                      <button
-                        type="button"
-                        onClick={handleProfileImageRemove}
-                        disabled={imageUploading}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold rounded-xl text-sm transition-all"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Remove Photo
-                      </button>
-                    )}
-
-                    <span className="text-xs text-slate-400">Max size 5MB (JPG, PNG, WEBP, GIF)</span>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-600 mb-2">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                    <input 
+                      type="text" 
+                      name="full_name" 
+                      disabled={!isEditing}
+                      value={formData.full_name} 
+                      onChange={handleChange}
+                      placeholder="Enter your full name"
+                      className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
                   </div>
                 </div>
-              )}
 
-            </div>
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-600 mb-2">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                    <input 
+                      type="email" 
+                      name="email" 
+                      disabled={!isEditing}
+                      value={formData.email} 
+                      onChange={handleChange}
+                      placeholder="Enter your email address"
+                      className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Phone Number */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-600 mb-2">Phone Number</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                    <input 
+                      type="tel" 
+                      name="phone" 
+                      disabled={!isEditing}
+                      value={formData.phone} 
+                      onChange={handleChange}
+                      placeholder="Enter your 10-digit phone number"
+                      className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Gender */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-600 mb-2">Gender</label>
+                  <select 
+                    name="gender" 
+                    disabled={!isEditing}
+                    value={formData.gender} 
+                    onChange={handleChange}
+                    className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </div>
+
+                {/* Profile Photo File Picker */}
+                {isEditing && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-slate-600 mb-2">Profile Photo</label>
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl text-sm cursor-pointer transition-all">
+                        {imageUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                        {imageUploading ? 'Uploading...' : (formData.profile_image ? 'Replace Photo' : 'Choose Photo')}
+                        <input 
+                          type="file" 
+                          accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                          onChange={handleProfileImageUpload}
+                          className="hidden"
+                          disabled={imageUploading}
+                        />
+                      </label>
+
+                      {formData.profile_image && (
+                        <button
+                          type="button"
+                          onClick={handleProfileImageRemove}
+                          disabled={imageUploading}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold rounded-xl text-sm transition-all"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Remove Photo
+                        </button>
+                      )}
+
+                      <span className="text-xs text-slate-400">Max size 5MB (JPG, PNG, WEBP, GIF)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Address Card */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-md p-6 sm:p-8">
             <h3 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-4 mb-6">Address</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* Address */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-slate-600 mb-2">Street Address</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+            {isAdmin ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="sm:col-span-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Street Address</p>
+                  <p className="text-base font-bold text-slate-900">{formData.address || 'N/A'}</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">City</p>
+                  <p className="text-base font-bold text-slate-900">{formData.city || 'N/A'}</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">State</p>
+                  <p className="text-base font-bold text-slate-900">{formData.state || 'N/A'}</p>
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 sm:col-span-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Pincode</p>
+                  <p className="text-base font-bold text-slate-900">{formData.pincode || 'N/A'}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Address */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-600 mb-2">Street Address</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                    <input 
+                      type="text" 
+                      name="address" 
+                      disabled={!isEditing}
+                      value={formData.address} 
+                      onChange={handleChange}
+                      placeholder="Enter your street address"
+                      className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* City */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-600 mb-2">City</label>
                   <input 
                     type="text" 
-                    name="address" 
+                    name="city" 
                     disabled={!isEditing}
-                    value={formData.address} 
+                    value={formData.city} 
                     onChange={handleChange}
-                    placeholder="Enter your street address"
-                    className="block w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="Enter your city"
+                    className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+
+                {/* State */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-600 mb-2">State</label>
+                  <input 
+                    type="text" 
+                    name="state" 
+                    disabled={!isEditing}
+                    value={formData.state} 
+                    onChange={handleChange}
+                    placeholder="Enter your state"
+                    className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  />
+                </div>
+
+                {/* Pincode */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-600 mb-2">Pincode</label>
+                  <input 
+                    type="text" 
+                    name="pincode" 
+                    disabled={!isEditing}
+                    value={formData.pincode} 
+                    onChange={handleChange}
+                    placeholder="Enter your 6-digit pincode"
+                    className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
               </div>
-
-              {/* City */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">City</label>
-                <input 
-                  type="text" 
-                  name="city" 
-                  disabled={!isEditing}
-                  value={formData.city} 
-                  onChange={handleChange}
-                  placeholder="Enter your city"
-                  className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-
-              {/* State */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">State</label>
-                <input 
-                  type="text" 
-                  name="state" 
-                  disabled={!isEditing}
-                  value={formData.state} 
-                  onChange={handleChange}
-                  placeholder="Enter your state"
-                  className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-
-              {/* Pincode */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-600 mb-2">Pincode</label>
-                <input 
-                  type="text" 
-                  name="pincode" 
-                  disabled={!isEditing}
-                  value={formData.pincode} 
-                  onChange={handleChange}
-                  placeholder="Enter your 6-digit pincode"
-                  className="block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 disabled:opacity-75 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-
-            </div>
+            )}
           </div>
 
           {/* Provider details section */}
@@ -613,7 +654,7 @@ const ProfilePage = () => {
                   <div>
                     <label className="block text-sm font-semibold text-slate-600 mb-2">Years of Experience</label>
                     <input 
-                      type="number" 
+                      type="text" 
                       name="experience" 
                       disabled={!isEditing}
                       value={formData.experience} 
@@ -888,7 +929,7 @@ const ProfilePage = () => {
           )}
 
           {/* Edit mode action submit button */}
-          {isEditing && (
+          {isEditing && !isAdmin && (
             <button 
               type="submit" 
               disabled={saveLoading} 

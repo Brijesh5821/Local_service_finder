@@ -14,6 +14,7 @@ import ProfilePage from '../pages/ProfilePage';
 import SettingsPage from '../pages/SettingsPage';
 import ForgotPasswordPage from '../pages/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/ResetPasswordPage';
+import ProviderDetailsPage from '../pages/ProviderDetailsPage';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isAuthenticated, user } = useAuth();
@@ -40,6 +41,8 @@ const AppRoutes = () => {
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/services" element={<ServicesPage />} />
+        <Route path="/provider/:providerId" element={<ProviderDetailsPage />} />
+        <Route path="/providers/:providerId" element={<ProviderDetailsPage />} />
         
         {/* Profile Route */}
         <Route 

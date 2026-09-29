@@ -34,14 +34,34 @@ logging.basicConfig(
 )
 logger = logging.getLogger("sevamitra_api")
 
+import asyncio
+from app.notifications.reminder_service import process_booking_reminders
+
+async def reminder_scheduler_loop():
+    """
+    Background loop that runs periodically to check upcoming bookings and send reminders.
+    """
+    while True:
+        try:
+            logger.info("[SCHEDULER] Running automated booking reminder process...")
+            process_booking_reminders()
+        except Exception as e:
+            logger.error(f"[SCHEDULER ERROR] Error in automated reminder scheduler loop: {e}", exc_info=True)
+        # Run every 1 hour (3600 seconds)
+        await asyncio.sleep(3600)
+
 # Define an async lifespan context manager to run startup tasks
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Call database initializer to build collections and indexes
     initialize_database()
     logger.info("SevaMitra backend initialized successfully.")
+    # Start periodic background reminder task
+    reminder_task = asyncio.create_task(reminder_scheduler_loop())
     # Hand over control back to the FastAPI framework
     yield
+    reminder_task.cancel()
+
 
 # Instantiate FastAPI application passing the lifespan handler
 app = FastAPI(title="SevaMitra Local Service Finder API", lifespan=lifespan)

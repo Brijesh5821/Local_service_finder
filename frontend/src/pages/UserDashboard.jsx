@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { providerService } from '../services/providerService';
 import { bookingService } from '../services/bookingService';
@@ -41,16 +42,25 @@ const StatusBadge = ({ status }) => {
 
 
 const ProviderCard = ({ provider, onBook }) => {
+  const navigate = useNavigate();
+
   const initials = provider.full_name
     ? provider.full_name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
     : '?';
 
   const rating = provider.average_rating ? Number(provider.average_rating).toFixed(1) : null;
+  const providerId = provider.id || provider._id;
+
+  const handleCardClick = () => {
+    if (providerId) {
+      navigate(`/provider/${providerId}`);
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden flex flex-col">
-      {/* Card top */}
-      <div className="p-5 flex-1">
+      {/* Card top - Clickable to open provider details page */}
+      <div onClick={handleCardClick} className="p-5 flex-1 cursor-pointer">
         <div className="flex items-start gap-4">
           {/* Avatar */}
           <div className="flex-shrink-0">
@@ -130,10 +140,17 @@ const ProviderCard = ({ provider, onBook }) => {
           )}
         </div>
         <button
-          onClick={() => onBook(provider)}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (providerId) {
+              navigate(`/provider/${providerId}`);
+            } else if (onBook) {
+              onBook(provider);
+            }
+          }}
           className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-sm hover:shadow-md"
         >
-          Book Now
+          View Details
         </button>
       </div>
     </div>
@@ -242,6 +259,12 @@ const UserDashboard = () => {
   const [minRating, setMinRating] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [availabilityDay, setAvailabilityDay] = useState('');
+  const [serviceDate, setServiceDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [timeError, setTimeError] = useState('');
+  const [categoriesList, setCategoriesList] = useState([]);
+
 
   // Bookings state
   const [bookings, setBookings] = useState([]);
@@ -321,17 +344,77 @@ const UserDashboard = () => {
     }
   };
 
+  useEffect(() => {
+    const fetchCats = async () => {
+      try {
+        const cats = await providerService.getCategories();
+        if (Array.isArray(cats) && cats.length > 0) {
+          setCategoriesList(cats);
+        }
+      } catch (e) {
+        console.error('Failed to load categories', e);
+      }
+    };
+    fetchCats();
+  }, []);
+
+  const validateDateTimeFilters = (date, sTime, eTime) => {
+    setTimeError('');
+    if ((sTime || eTime) && !date) {
+      setTimeError('Please select a service date first before choosing time slots.');
+      return false;
+    }
+    if (sTime && eTime && sTime >= eTime) {
+      setTimeError('Start time must be before end time.');
+      return false;
+    }
+    if (date && sTime) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (date === todayStr) {
+        const now = new Date();
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+        const [h, m] = sTime.split(':').map(Number);
+        if (h * 60 + m < currentMins) {
+          setTimeError('Selected start time has already passed for today.');
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const handleResetFilters = () => {
+    setSearchName('');
+    setSelectedCategory('');
+    setFilterCity('');
+    setMaxPrice('');
+    setMinRating('');
+    setAvailabilityDay('');
+    setServiceDate('');
+    setStartTime('');
+    setEndTime('');
+    setTimeError('');
+    setSortBy('');
+    setCurrentPage(1);
+  };
+
   const fetchProviders = useCallback(async () => {
+    if (!validateDateTimeFilters(serviceDate, startTime, endTime)) {
+      return;
+    }
     setProvidersLoading(true);
     setProvidersError('');
     try {
       const filters = {};
       if (searchName) filters.name = searchName;
-      if (selectedCategory) filters.category = selectedCategory;
+      if (selectedCategory && selectedCategory !== 'All Categories') filters.category = selectedCategory;
       if (filterCity) filters.city = filterCity;
       if (maxPrice) filters.max_price = parseFloat(maxPrice);
       if (minRating) filters.min_rating = parseFloat(minRating);
       if (availabilityDay) filters.availability = availabilityDay;
+      if (serviceDate) filters.date = serviceDate;
+      if (startTime) filters.start_time = startTime;
+      if (endTime) filters.end_time = endTime;
       if (userLat !== null) filters.lat = userLat;
       if (userLng !== null) filters.lng = userLng;
       if (userLat !== null && userLng !== null) filters.radius = searchRadius;
@@ -347,7 +430,8 @@ const UserDashboard = () => {
     } finally {
       setProvidersLoading(false);
     }
-  }, [searchName, selectedCategory, filterCity, maxPrice, minRating, availabilityDay, userLat, userLng, searchRadius, sortBy, currentPage, itemsPerPage]);
+  }, [searchName, selectedCategory, filterCity, maxPrice, minRating, availabilityDay, serviceDate, startTime, endTime, userLat, userLng, searchRadius, sortBy, currentPage, itemsPerPage]);
+
 
   const fetchBookings = useCallback(async () => {
     setBookingsLoading(true);
@@ -664,65 +748,134 @@ const UserDashboard = () => {
 
               {/* Advanced Filters */}
               {showFilters && (
-                <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 mb-1">Max Hourly Rate (₹)</label>
-                    <input
-                      type="number"
-                      placeholder="Enter max price"
-                      value={maxPrice}
-                      onChange={e => { setMaxPrice(e.target.value); setCurrentPage(1); }}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                    />
+                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col gap-4">
+                  {timeError && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      <span>{timeError}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Category</label>
+                      <select
+                        value={selectedCategory}
+                        onChange={e => { setSelectedCategory(e.target.value); setCurrentPage(1); }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      >
+                        <option value="">All Categories</option>
+                        {(categoriesList.length > 0 ? categoriesList : [
+                          'Plumber', 'Electrician', 'Painter', 'Carpenter', 'Cleaning', 'Cook', 'Tutor', 'Laptop Repair', 'AC Repair', 'Beautician', 'Appliance Repair', 'Mechanic', 'Pest Control'
+                        ]).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Service Date</label>
+                      <input
+                        type="date"
+                        value={serviceDate}
+                        onChange={e => { setServiceDate(e.target.value); setTimeError(''); setCurrentPage(1); }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Start Time</label>
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={e => { setStartTime(e.target.value); setTimeError(''); setCurrentPage(1); }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">End Time</label>
+                      <input
+                        type="time"
+                        value={endTime}
+                        onChange={e => { setEndTime(e.target.value); setTimeError(''); setCurrentPage(1); }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Max Hourly Rate (₹)</label>
+                      <input
+                        type="number"
+                        placeholder="Enter max price"
+                        value={maxPrice}
+                        onChange={e => { setMaxPrice(e.target.value); setCurrentPage(1); }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Min Rating</label>
+                      <select
+                        value={minRating}
+                        onChange={e => { setMinRating(e.target.value); setCurrentPage(1); }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      >
+                        <option value="">Any</option>
+                        <option value="3">3+</option>
+                        <option value="4">4+</option>
+                        <option value="4.5">4.5+</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Availability</label>
+                      <select
+                        value={availabilityDay}
+                        onChange={e => { setAvailabilityDay(e.target.value); setCurrentPage(1); }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      >
+                        <option value="">Any Day</option>
+                        <option value="monday">Monday</option>
+                        <option value="tuesday">Tuesday</option>
+                        <option value="wednesday">Wednesday</option>
+                        <option value="thursday">Thursday</option>
+                        <option value="friday">Friday</option>
+                        <option value="saturday">Saturday</option>
+                        <option value="sunday">Sunday</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Sort By</label>
+                      <select
+                        value={sortBy}
+                        onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+                      >
+                        <option value="">Default</option>
+                        <option value="price_low_high">Price: Low to High</option>
+                        <option value="price_high_low">Price: High to Low</option>
+                        <option value="rating">Rating</option>
+                        {userLat !== null && userLng !== null && (
+                          <option value="distance">Distance (Near First)</option>
+                        )}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 mb-1">Min Rating</label>
-                    <select
-                      value={minRating}
-                      onChange={e => { setMinRating(e.target.value); setCurrentPage(1); }}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-all"
                     >
-                      <option value="">Any</option>
-                      <option value="3">3+</option>
-                      <option value="4">4+</option>
-                      <option value="4.5">4.5+</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 mb-1">Availability</label>
-                    <select
-                      value={availabilityDay}
-                      onChange={e => { setAvailabilityDay(e.target.value); setCurrentPage(1); }}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                    >
-                      <option value="">Any Day</option>
-                      <option value="monday">Monday</option>
-                      <option value="tuesday">Tuesday</option>
-                      <option value="wednesday">Wednesday</option>
-                      <option value="thursday">Thursday</option>
-                      <option value="friday">Friday</option>
-                      <option value="saturday">Saturday</option>
-                      <option value="sunday">Sunday</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-500 mb-1">Sort By</label>
-                    <select
-                      value={sortBy}
-                      onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
-                    >
-                      <option value="">Default</option>
-                      <option value="price_low_high">Price: Low to High</option>
-                      <option value="price_high_low">Price: High to Low</option>
-                      <option value="rating">Rating</option>
-                      {userLat !== null && userLng !== null && (
-                        <option value="distance">Distance (Near First)</option>
-                      )}
-                    </select>
+                      Clear All Filters
+                    </button>
                   </div>
                 </div>
               )}
+
             </div>
 
             {/* Results count */}

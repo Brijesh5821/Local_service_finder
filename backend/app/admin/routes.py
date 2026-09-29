@@ -76,9 +76,10 @@ def approve_user(
     if not user_doc:
         raise HTTPException(status_code=404, detail="User account not found")
 
-    account_status = user_doc.get("account_status", "pending")
-    if account_status != "pending":
-        raise HTTPException(status_code=400, detail="Account is not in pending state")
+    account_status = str(user_doc.get("account_status") or user_doc.get("status") or "pending").lower()
+    if account_status == "approved":
+        res = controller.get_user_details(user_id)
+        return {"success": True, "message": "User account is already approved", "user": res}
 
     res = controller.approve_user(user_id, admin_id)
     if not res:

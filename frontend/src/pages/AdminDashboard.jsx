@@ -99,7 +99,7 @@ const AdminDashboard = () => {
     const isCurrentlySuspended = targetUser.status === 'suspended' || targetUser.is_active === false;
     const actionText = isCurrentlySuspended ? 'activate' : 'suspend';
     
-    if (!window.confirm(`Are you sure you want to ₹{actionText} the user account for ${targetUser.full_name || targetUser.email}?`)) {
+    if (!window.confirm(`Are you sure you want to ${actionText} the user account for ${targetUser.full_name || targetUser.email}?`)) {
       return;
     }
 
@@ -173,7 +173,7 @@ const AdminDashboard = () => {
     }
     setActionLoading(true);
     try {
-      await adminService.approveUser(targetUser._id);
+      const res = await adminService.approveUser(targetUser._id);
       
       // Update local state
       setUsers(prev => prev.map(u => u._id === targetUser._id ? { ...u, account_status: 'approved', status: 'active', is_active: true } : u));
@@ -185,7 +185,7 @@ const AdminDashboard = () => {
       const statsData = await adminService.getDashboardStats();
       setStats(statsData);
       
-      alert('Account approved successfully!');
+      alert(res?.message || 'User account approved successfully!');
     } catch (err) {
       alert(err.message || 'Failed to approve account');
     } finally {
@@ -545,14 +545,6 @@ const AdminDashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <button 
-                onClick={fetchData}
-                disabled={loading}
-                className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors flex items-center gap-2"
-                title="Refresh Data"
-              >
-                <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-              </button>
-              <button 
                 onClick={logout}
                 className="bg-slate-950 hover:bg-slate-900 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors"
               >
@@ -726,7 +718,7 @@ const AdminDashboard = () => {
                           <div key={status}>
                             <div className="flex justify-between text-sm font-semibold text-slate-700 mb-1.5">
                               <span className="flex items-center gap-2">
-                                <span className={`w-2.5 h-2.5 rounded-full ₹{colorClass}`}></span>
+                                <span className={`w-2.5 h-2.5 rounded-full ${colorClass}`}></span>
                                 {status}
                               </span>
                               <span>{count} ({percentage}%)</span>
@@ -1061,7 +1053,7 @@ const AdminDashboard = () => {
                                 </div>
                               </td>
                               <td className="py-4 px-6 font-bold text-slate-800 text-sm">
-                                ${item.total_amount || 0}
+                                ₹{item.total_amount || 0}
                               </td>
                               <td className="py-4 px-6">
                                 <span className={`px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${statusColor}`}>
@@ -1134,7 +1126,7 @@ const AdminDashboard = () => {
                             <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
                               {item.category_name}
                             </span>
-                            <span className="text-slate-800 font-extrabold text-lg">${item.price_value}</span>
+                            <span className="text-slate-800 font-extrabold text-lg">₹{item.price_value}</span>
                           </div>
                           
                           <h3 className="font-bold text-slate-800 text-base mt-4 line-clamp-1">{item.title}</h3>
@@ -1374,7 +1366,7 @@ const AdminDashboard = () => {
                                 {isProvider ? (
                                   <div>
                                     <p className="font-medium">{item.provider_category || 'Home Services'}</p>
-                                    <p className="text-xs text-slate-400 mt-0.5">${item.hourly_rate || 0}/hr • {item.experience || 0} yrs exp</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">₹{item.hourly_rate || 0}/hr • {item.experience || 0} yrs exp</p>
                                   </div>
                                 ) : (
                                   <span className="text-slate-400">Customer account review</span>
@@ -1502,7 +1494,7 @@ const AdminDashboard = () => {
                       </div>
                       <div>
                         <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Hourly Rate</p>
-                        <p className="text-sm font-bold text-slate-800 mt-1">${selectedRequest.hourly_rate || 0}/hr</p>
+                        <p className="text-sm font-bold text-slate-800 mt-1">₹{selectedRequest.hourly_rate || 0}/hr</p>
                       </div>
                       <div>
                         <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Experience</p>

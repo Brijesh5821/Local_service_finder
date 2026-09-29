@@ -119,6 +119,18 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleLoginRequest(BaseModel):
+    token: str
+
+    @field_validator('token', mode='before')
+    @classmethod
+    def extract_token(cls, v: Any) -> str:
+        if isinstance(v, dict):
+            return str(v.get("token") or v.get("credential") or v.get("id_token") or "")
+        return str(v) if v is not None else ""
+
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8)

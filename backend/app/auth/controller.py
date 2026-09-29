@@ -10,3 +10,7 @@ from app.auth.schema import LoginRequest
 
 def login(user: LoginRequest):
     return service.login_user(user)
+
+
+def google_login(token: str):
+    return service.google_login_user(token)

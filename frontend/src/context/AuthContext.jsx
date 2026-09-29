@@ -6,6 +6,9 @@ const AuthContext = createContext(null);
 const parseToken = (token) => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      return null;
+    }
     return {
       email: payload.email,
       role: payload.role ? payload.role.toLowerCase() : 'user',
@@ -40,6 +43,15 @@ export const AuthProvider = ({ children }) => {
     } catch {
       // silently fail – token-based data is already set
     }
+  }, []);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setUser(null);
+      localStorage.removeItem('token');
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
   useEffect(() => {

@@ -40,8 +40,20 @@ const Navbar = () => {
 
   const isProvider = user && (user?.role || '').toLowerCase() === 'provider';
 
+  const getHomePath = () => {
+    if (isAuthenticated() && user) {
+      const role = (user.role || '').toLowerCase();
+      if (role.includes('admin')) return '/admin-dashboard';
+      if (role.includes('provider')) return '/provider-dashboard';
+      return '/user-dashboard';
+    }
+    return '/';
+  };
+
+  const homePath = getHomePath();
+
   const navLinks = [
-    { name: 'Home', path: '/' },
+    { name: 'Home', path: homePath },
     { name: 'Services', path: isProvider ? '/provider-dashboard?tab=services' : '/services' },
   ];
 
@@ -49,7 +61,7 @@ const Navbar = () => {
     if (path.includes('/provider-dashboard?tab=services')) {
       return location.pathname === '/provider-dashboard' && (location.search.includes('tab=services') || !location.search);
     }
-    return location.pathname === path && !location.search;
+    return location.pathname === path;
   };
 
   const handleLogoutClick = () => {
@@ -73,7 +85,7 @@ const Navbar = () => {
         <div className="flex items-center justify-between">
 
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group flex-shrink-0">
+          <Link to={homePath} className="flex items-center gap-2 group flex-shrink-0">
             <div className="bg-blue-600 text-white p-1.5 rounded-lg group-hover:bg-blue-700 transition-colors">
               <MapPin className="h-5 w-5" />
             </div>
@@ -124,7 +136,7 @@ const Navbar = () => {
 
                     <div className="py-1">
                       <Link
-                        to={`/${user?.role}-dashboard`}
+                        to={homePath}
                         onClick={() => setDropdownOpen(false)}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-all"
                       >
@@ -215,7 +227,7 @@ const Navbar = () => {
                   <p className="text-sm font-bold text-slate-800 mt-0.5">{user?.full_name || 'User'}</p>
                 </div>
                 <Link
-                  to={`/${user?.role}-dashboard`}
+                  to={homePath}
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-3 w-full text-left py-3 px-4 text-slate-700 font-medium border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
                 >

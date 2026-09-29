@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.auth import controller
-from app.auth.schema import RegisterRequest, LoginRequest, ForgotPasswordRequest, ResetPasswordRequest
+from app.auth.schema import RegisterRequest, LoginRequest, ForgotPasswordRequest, ResetPasswordRequest, GoogleLoginRequest
 from app.middleware.rate_limiter import (
     login_rate_limiter,
     register_rate_limiter,
@@ -39,6 +39,19 @@ def login(user: LoginRequest):
     except Exception as e:
         logger.error(f"Error during login for {user.email}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred during login.")
+
+
+@router.post("/google", dependencies=[Depends(login_rate_limiter)])
+def google_login(data: GoogleLoginRequest):
+    try:
+        res = controller.google_login(data.token)
+        return res
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during Google login: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during Google authentication.")
+
 
 
 @router.post("/forgot-password", dependencies=[Depends(forgot_password_rate_limiter)])

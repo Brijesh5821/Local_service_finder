@@ -82,6 +82,67 @@ def initialize_database():
                 "created_at": datetime.utcnow()
             })
 
+    # 3.5 Seed initial approved service providers if none exist
+    if db.users.count_documents({"role": {"$in": ["Provider", "provider"]}}) == 0:
+        from app.config.security import hash_password
+        default_providers = [
+            {
+                "full_name": "Alex Rivera",
+                "email": "alex.rivera@example.com",
+                "phone": "9876543210",
+                "password": hash_password("provider123"),
+                "role": "Provider",
+                "provider_category": "Electrician",
+                "hourly_rate": 65.0,
+                "average_rating": 4.9,
+                "review_count": 142,
+                "description": "Specialist in smart home integration & safety audits.",
+                "profile_image": "https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80",
+                "city": "Ahmedabad",
+                "is_active": True,
+                "status": "active",
+                "account_status": "approved",
+                "created_at": datetime.utcnow()
+            },
+            {
+                "full_name": "Maria Santos",
+                "email": "maria.santos@example.com",
+                "phone": "9876543211",
+                "password": hash_password("provider123"),
+                "role": "Provider",
+                "provider_category": "Cleaning",
+                "hourly_rate": 40.0,
+                "average_rating": 5.0,
+                "review_count": 310,
+                "description": "Eco-friendly deep cleaning & post-construction setup.",
+                "profile_image": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80",
+                "city": "Ahmedabad",
+                "is_active": True,
+                "status": "active",
+                "account_status": "approved",
+                "created_at": datetime.utcnow()
+            },
+            {
+                "full_name": "David Miller",
+                "email": "david.miller@example.com",
+                "phone": "9876543212",
+                "password": hash_password("provider123"),
+                "role": "Provider",
+                "provider_category": "Plumber",
+                "hourly_rate": 75.0,
+                "average_rating": 4.8,
+                "review_count": 98,
+                "description": "Emergency leaks, drain cleaning, and water heater installs.",
+                "profile_image": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+                "city": "Ahmedabad",
+                "is_active": True,
+                "status": "active",
+                "account_status": "approved",
+                "created_at": datetime.utcnow()
+            }
+        ]
+        db.users.insert_many(default_providers)
+
     # 4. Seed services mapped to providers if the services collection is empty
     if db.services.count_documents({}) == 0:
         providers = list(db.users.find({"role": {"$in": ["Provider", "provider"]}}))
@@ -205,5 +266,33 @@ def initialize_database():
             {"_id": u["_id"]},
             {"$set": {"account_status": acc_status}}
         )
+
+    # 7. Seed initial customer reviews if none exist
+    if db.reviews.count_documents({}) == 0:
+        default_reviews = [
+            {
+                "customer_name": "Riyu Patel",
+                "customer_role": "Verified Customer",
+                "rating": 5,
+                "review_text": "The service provider arrived exactly on time and repaired the fixture in 30 minutes! Highly professional work.",
+                "created_at": datetime.utcnow()
+            },
+            {
+                "customer_name": "Aarav Sharma",
+                "customer_role": "Homeowner",
+                "rating": 5,
+                "review_text": "Deep cleaning service was incredible. The team brought their own tools and left the house sparkling clean.",
+                "created_at": datetime.utcnow()
+            },
+            {
+                "customer_name": "Priya Mehta",
+                "customer_role": "Apartment Tenant",
+                "rating": 5,
+                "review_text": "Amazing service. Finding a certified technician for a quick fixture replacement took me less than 2 minutes.",
+                "created_at": datetime.utcnow()
+            }
+        ]
+        db.reviews.insert_many(default_reviews)
+
 
 

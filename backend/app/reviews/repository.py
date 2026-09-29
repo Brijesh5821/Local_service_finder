@@ -19,6 +19,14 @@ def get_reviews_by_provider(provider_id: str) -> list:
             r["created_at"] = r["created_at"].isoformat()
     return reviews
 
+def get_recent_reviews(limit: int = 6) -> list:
+    reviews = list(reviews_collection.find().sort("created_at", -1).limit(limit))
+    for r in reviews:
+        r["_id"] = str(r["_id"])
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return reviews
+
 def get_review_by_booking(booking_id: str) -> dict:
     r = reviews_collection.find_one({"booking_id": booking_id})
     if r:

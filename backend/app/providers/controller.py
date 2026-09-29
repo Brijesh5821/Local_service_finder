@@ -59,14 +59,18 @@ def delete_provider_service(service_id: str, provider_id: str) -> bool:
 # Forward request to get all providers (existing search API)
 def get_providers(name=None, category=None, city=None,
                   min_price=None, max_price=None, min_rating=None, availability=None,
+                  date=None, start_time=None, end_time=None,
                   lat=None, lng=None, radius=10.0, sort_by=None, page=1, limit=10):
-    # Call service method to query provider search results
-    return service.get_providers(name, category, city, min_price, max_price, min_rating, availability, lat, lng, radius, sort_by, page, limit)
+    return service.get_providers(name, category, city, min_price, max_price, min_rating, availability, date, start_time, end_time, lat, lng, radius, sort_by, page, limit)
+
+def get_categories():
+    return service.get_categories()
 
 # Forward request to get provider details by ID (existing search API)
 def get_provider_by_id(provider_id: str):
     # Call service method to retrieve profile details
     return service.get_provider_by_id(provider_id)
+
 
 def accept_reschedule_booking(booking_id: str, provider_id: str) -> bool:
     from app.bookings import service as bookings_service

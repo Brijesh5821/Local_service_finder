@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   Search, MapPin, Star, ChevronDown, ChevronUp,
   Tag, AlertCircle, Home, ChevronRight, SlidersHorizontal, X
@@ -111,6 +111,7 @@ const ServicesPage = () => {
   const { isAuthenticated, user } = useAuth();
   const isAdmin = user && ['admin', 'system_admin'].includes(user.role?.toLowerCase());
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Search & Filter state — initialize from URL params
@@ -215,6 +216,68 @@ const ServicesPage = () => {
     fetchServices();
   }, [fetchServices]);
 
+  useEffect(() => {
+    if (location.state?.selectedService && isAuthenticated()) {
+      const s = location.state.selectedService;
+      setSelectedProvider({
+        id: s.provider_id,
+        service_id: s.id || s._id,
+        full_name: s.provider_name,
+        profile_image: s.provider_image,
+        hourly_rate: s.price_value || s.hourly_rate || s.price,
+        provider_category: s.category_name || s.category,
+        availability: s.availability,
+        title: s.title,
+        city: s.city,
+        description: s.description
+      });
+      sessionStorage.removeItem('pending_booking_id');
+      sessionStorage.removeItem('pending_booking_service');
+      window.history.replaceState({}, document.title);
+    } else if (sessionStorage.getItem('pending_booking_service') && isAuthenticated()) {
+      try {
+        const s = JSON.parse(sessionStorage.getItem('pending_booking_service'));
+        setSelectedProvider({
+          id: s.provider_id,
+          service_id: s.id || s._id,
+          full_name: s.provider_name,
+          profile_image: s.provider_image,
+          hourly_rate: s.price_value || s.hourly_rate || s.price,
+          provider_category: s.category_name || s.category,
+          availability: s.availability,
+          title: s.title,
+          city: s.city,
+          description: s.description
+        });
+        sessionStorage.removeItem('pending_booking_id');
+        sessionStorage.removeItem('pending_booking_service');
+      } catch (e) {
+        console.error(e);
+      }
+    } else if (searchParams.get('bookServiceId') && isAuthenticated()) {
+      const bookId = searchParams.get('bookServiceId');
+      api.get(`/services/${bookId}`).then(res => {
+        if (res.data?.success && res.data?.service) {
+          const s = res.data.service;
+          setSelectedProvider({
+            id: s.provider_id,
+            service_id: s.id || s._id,
+            full_name: s.provider_name,
+            profile_image: s.provider_image,
+            hourly_rate: s.price_value || s.hourly_rate || s.price,
+            provider_category: s.category_name || s.category,
+            availability: s.availability,
+            title: s.title,
+            city: s.city,
+            description: s.description
+          });
+        }
+        sessionStorage.removeItem('pending_booking_id');
+        sessionStorage.removeItem('pending_booking_service');
+      }).catch(err => console.error(err));
+    }
+  }, [location.state, searchParams, isAuthenticated]);
+
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     const newParams = {};
@@ -241,13 +304,14 @@ const ServicesPage = () => {
       alert('System Admin users cannot create service bookings.');
       return;
     }
+    const serviceId = service.id || service._id;
     if (!isAuthenticated()) {
-      navigate('/login');
+      navigate('/login', { state: { redirectTo: `/services?bookServiceId=${serviceId}`, selectedService: service } });
       return;
     }
     setSelectedProvider({
       id: service.provider_id,
-      service_id: service.id,
+      service_id: serviceId,
       full_name: service.provider_name,
       profile_image: service.provider_image,
       hourly_rate: service.price_value,
@@ -609,7 +673,11 @@ const ServicesPage = () => {
                       </p>
 
                       {/* Provider Row */}
-                      <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                      <div 
+                        onClick={() => navigate(`/provider/${service.provider_id}`)}
+                        className="flex items-center justify-between pt-4 border-t border-slate-100 cursor-pointer hover:opacity-80 transition-opacity"
+                        title="View Provider Profile Details"
+                      >
                         <div className="flex items-center gap-2.5 min-w-0">
                           {service.provider_image ? (
                             <img

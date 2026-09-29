@@ -1,16 +1,150 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, MapPin, ArrowRight, Star, ShieldCheck, Zap, ThumbsUp, Wrench, Paintbrush, Droplet, Wind, Sparkles, MonitorSmartphone, Trophy, CheckCircle, Users } from 'lucide-react';
+import { Search, MapPin, ArrowRight, Star, ShieldCheck, Zap, ThumbsUp, Wrench, Paintbrush, Droplet, Wind, Sparkles } from 'lucide-react';
+import { providerService } from '../services/providerService';
+import { reviewService } from '../services/reviewService';
+import api from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
+  const isAdmin = user && ['admin', 'system_admin'].includes(user.role?.toLowerCase());
+
   const [searchQuery, setSearchQuery] = useState('');
   const [locationQuery, setLocationQuery] = useState('');
+  const [featuredProviders, setFeaturedProviders] = useState([]);
+  const [loadingProviders, setLoadingProviders] = useState(true);
+  const [providersError, setProvidersError] = useState(false);
+
+  const [popularServices, setPopularServices] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [servicesError, setServicesError] = useState(false);
+
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [reviewsError, setReviewsError] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated() && user) {
+      const role = (user.role || '').toLowerCase();
+      if (role.includes('admin')) {
+        navigate('/admin-dashboard', { replace: true });
+      } else if (role.includes('provider')) {
+        navigate('/provider-dashboard', { replace: true });
+      } else {
+        navigate('/user-dashboard', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFeaturedProviders = async () => {
+      try {
+        setLoadingProviders(true);
+        setProvidersError(false);
+        const res = await providerService.getProviders({ sort_by: 'rating', limit: 3 });
+        if (isMounted) {
+          const providerList = res?.providers || res?.items || (Array.isArray(res) ? res : []);
+          setFeaturedProviders(providerList);
+        }
+      } catch (err) {
+        console.error('Failed to fetch featured providers:', err);
+        if (isMounted) {
+          setProvidersError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingProviders(false);
+        }
+      }
+    };
+
+    fetchFeaturedProviders();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPopularServices = async () => {
+      try {
+        setLoadingServices(true);
+        setServicesError(false);
+        const res = await api.get('/services/', { params: { limit: 3, sort_by: 'rating' } });
+        if (isMounted) {
+          const serviceList = res.data?.services || res.data?.items || (Array.isArray(res.data) ? res.data : []);
+          setPopularServices(serviceList);
+        }
+      } catch (err) {
+        console.error('Failed to fetch popular services:', err);
+        if (isMounted) {
+          setServicesError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingServices(false);
+        }
+      }
+    };
+
+    fetchPopularServices();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchReviews = async () => {
+      try {
+        setLoadingReviews(true);
+        setReviewsError(false);
+        const res = await reviewService.getRecentReviews(3);
+        if (isMounted) {
+          const reviewList = res?.reviews || (Array.isArray(res) ? res : []);
+          setReviews(reviewList);
+        }
+      } catch (err) {
+        console.error('Failed to fetch customer reviews:', err);
+        if (isMounted) {
+          setReviewsError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingReviews(false);
+        }
+      }
+    };
+
+    fetchReviews();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     // Navigate to services page with filters
     navigate(`/services?q=${encodeURIComponent(searchQuery)}&location=${encodeURIComponent(locationQuery)}`);
+  };
+
+  const handleBookNowClick = (service) => {
+    if (isAdmin) {
+      alert('System Admin users cannot create service bookings.');
+      return;
+    }
+    const serviceId = service.id || service._id;
+    const targetUrl = `/services?bookServiceId=${serviceId}`;
+    if (!isAuthenticated()) {
+      sessionStorage.setItem('pending_booking_id', serviceId);
+      sessionStorage.setItem('pending_booking_service', JSON.stringify(service));
+      navigate('/login', { state: { redirectTo: targetUrl, selectedService: service } });
+    } else {
+      navigate(targetUrl, { state: { selectedService: service } });
+    }
   };
 
   const popularCategories = [
@@ -20,42 +154,6 @@ const HomePage = () => {
     { name: 'Cleaning', icon: <Sparkles className="h-6 w-6" />, count: '4,200+ Pros' },
     { name: 'AC Repair', icon: <Wind className="h-6 w-6" />, count: '1,500+ Pros' },
     { name: 'Appliance Repair', icon: <Wrench className="h-6 w-6" />, count: '2,900+ Pros' }
-  ];
-
-  const featuredProviders = [
-    {
-      name: 'Alex Rivera',
-      category: 'Electrician',
-      rating: 4.9,
-      reviews: 142,
-      hourly_rate: 65,
-      image: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80',
-      tagline: 'Specialist in smart home integration & safety audits.'
-    },
-    {
-      name: 'Maria Santos',
-      category: 'Cleaning',
-      rating: 5.0,
-      reviews: 310,
-      hourly_rate: 40,
-      image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
-      tagline: 'Eco-friendly deep cleaning & post-construction setup.'
-    },
-    {
-      name: 'David Miller',
-      category: 'Plumber',
-      rating: 4.8,
-      reviews: 98,
-      hourly_rate: 75,
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
-      tagline: 'Emergency leaks, drain cleaning, and water heater installs.'
-    }
-  ];
-
-  const popularServices = [
-    { title: 'Full Home Deep Cleaning', price: 120, category: 'Cleaning', rating: 4.9, image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&auto=format&fit=crop&q=80' },
-    { title: 'Ceiling Fan & Light Install', price: 75, category: 'Electrician', rating: 4.8, image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&auto=format&fit=crop&q=80' },
-    { title: 'Kitchen Pipe Leak Repair', price: 90, category: 'Plumber', rating: 5.0, image: 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&auto=format&fit=crop&q=80' }
   ];
 
   return (
@@ -183,13 +281,13 @@ const HomePage = () => {
               <Link 
                 to={`/services?category=${cat.name}`} 
                 key={i} 
-                className="group p-6 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-500 hover:bg-white hover:shadow-xl transition-all duration-300 text-center flex flex-col items-center justify-center"
+                className="group p-6 bg-slate-50/60 hover:bg-white rounded-2xl border border-[#D1D9E6] hover:border-blue-500 hover:shadow-xl transition-all duration-300 text-center flex flex-col items-center justify-center h-full min-h-[175px] w-full"
               >
-                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
+                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300 shrink-0">
                   {cat.icon}
                 </div>
-                <h3 className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">{cat.name}</h3>
-                <p className="text-xs text-slate-400 mt-1">{cat.count}</p>
+                <h3 className="font-bold text-slate-800 text-sm text-center group-hover:text-blue-600 transition-colors leading-tight">{cat.name}</h3>
+                <p className="text-xs text-slate-400 text-center mt-1.5 font-medium">{cat.count}</p>
               </Link>
             ))}
           </div>
@@ -210,31 +308,70 @@ const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredProviders.map((provider, index) => (
-              <div key={index} className="bg-white rounded-3xl border border-slate-100 p-6 hover:shadow-xl transition-all group duration-300">
-                <div className="flex items-center gap-4 mb-4">
-                  <img src={provider.image} alt={provider.name} className="w-16 h-16 rounded-full object-cover border-2 border-blue-500/20" />
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-lg group-hover:text-blue-600 transition-colors">{provider.name}</h4>
-                    <span className="text-xs bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">{provider.category}</span>
+            {loadingProviders ? (
+              [1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-3xl border border-slate-100 p-6 animate-pulse">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-16 h-16 rounded-full bg-slate-200"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                      <div className="h-3 bg-slate-200 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                  <div className="h-3 bg-slate-200 rounded w-full mb-2"></div>
+                  <div className="h-3 bg-slate-200 rounded w-2/3 mb-6"></div>
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                    <div className="h-4 bg-slate-200 rounded w-1/3"></div>
+                    <div className="h-4 bg-slate-200 rounded w-1/4"></div>
                   </div>
                 </div>
-                
-                <p className="text-sm text-slate-600 mb-6">{provider.tagline}</p>
-                
-                <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                  <div className="flex items-center gap-1.5">
-                    <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                    <span className="text-sm font-bold text-slate-800">{provider.rating}</span>
-                    <span className="text-xs text-slate-400">({provider.reviews} reviews)</span>
-                  </div>
-                  <div>
-                    <span className="text-lg font-bold text-blue-600">${provider.hourly_rate}</span>
-                    <span className="text-xs text-slate-400">/hr</span>
-                  </div>
-                </div>
+              ))
+            ) : providersError ? (
+              <div className="col-span-full text-center py-8 text-slate-500">
+                Unable to load providers at this time.
               </div>
-            ))}
+            ) : featuredProviders.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-slate-500">
+                No service providers available.
+              </div>
+            ) : (
+              featuredProviders.map((provider, index) => {
+                const name = provider.full_name || provider.name || 'Service Pro';
+                const image = provider.profile_image || provider.image || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80';
+                const category = provider.provider_category || provider.category || 'General Service';
+                const tagline = provider.description || provider.tagline || provider.bio || 'Verified service provider offering quality home services.';
+                const rawRating = provider.average_rating ?? provider.rating ?? 5.0;
+                const rating = typeof rawRating === 'number' ? rawRating.toFixed(1) : rawRating;
+                const reviews = provider.review_count ?? provider.reviews ?? 0;
+                const hourlyRate = provider.hourly_rate ?? provider.price_value ?? provider.price ?? 0;
+
+                return (
+                  <div key={provider.id || provider._id || index} className="bg-white rounded-3xl border border-slate-100 p-6 hover:shadow-xl transition-all group duration-300">
+                    <div className="flex items-center gap-4 mb-4">
+                      <img src={image} alt={name} className="w-16 h-16 rounded-full object-cover border-2 border-blue-500/20" />
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-lg group-hover:text-blue-600 transition-colors">{name}</h4>
+                        <span className="text-xs bg-blue-50 text-blue-600 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">{category}</span>
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-slate-600 mb-6">{tagline}</p>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                        <span className="text-sm font-bold text-slate-800">{rating}</span>
+                        <span className="text-xs text-slate-400">({reviews} reviews)</span>
+                      </div>
+                      <div>
+                        <span className="text-lg font-bold text-blue-600">₹{hourlyRate}</span>
+                        <span className="text-xs text-slate-400">/hr</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </section>
@@ -248,33 +385,74 @@ const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {popularServices.map((service, idx) => (
-              <div key={idx} className="bg-white rounded-3xl border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-300 group">
-                <div className="h-48 relative overflow-hidden bg-slate-200">
-                  <img src={service.image} alt={service.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute top-4 left-4 bg-blue-600 text-white font-bold text-[10px] uppercase px-2.5 py-1 rounded-md tracking-wider">
-                    {service.category}
-                  </div>
-                </div>
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-slate-900 text-lg group-hover:text-blue-600 transition-colors">{service.title}</h3>
-                    <div className="flex items-center gap-1 text-amber-500 bg-amber-50 px-2 py-0.5 rounded text-xs font-bold shrink-0">
-                      <Star className="h-3.5 w-3.5 fill-current" /> {service.rating}
+            {loadingServices ? (
+              [1, 2, 3].map((i) => (
+                <div key={i} className="bg-white rounded-3xl border border-slate-100 overflow-hidden animate-pulse">
+                  <div className="h-48 bg-slate-200"></div>
+                  <div className="p-6 space-y-4">
+                    <div className="h-5 bg-slate-200 rounded w-3/4"></div>
+                    <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+                    <div className="pt-6 border-t border-slate-100 flex justify-between items-center">
+                      <div className="h-6 bg-slate-200 rounded w-1/3"></div>
+                      <div className="h-9 bg-slate-200 rounded w-1/4"></div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-6">
-                    <div>
-                      <p className="text-[10px] text-slate-400 uppercase font-semibold">Starting cost</p>
-                      <p className="text-2xl font-black text-slate-950">${service.price}</p>
-                    </div>
-                    <Link to="/services" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl transition-colors text-sm">
-                      Book Now
-                    </Link>
-                  </div>
                 </div>
+              ))
+            ) : servicesError ? (
+              <div className="col-span-full text-center py-8 text-slate-500">
+                Unable to load services at this time.
               </div>
-            ))}
+            ) : popularServices.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-slate-500">
+                No services currently available.
+              </div>
+            ) : (
+              popularServices.map((service, idx) => {
+                const title = service.title || service.name || 'Home Service';
+                const category = service.category_name || service.category || 'General Service';
+                const rawRating = service.average_rating ?? service.rating ?? 5.0;
+                const rating = typeof rawRating === 'number' ? rawRating.toFixed(1) : rawRating;
+                const price = service.price_value ?? service.hourly_rate ?? service.price ?? 0;
+                const image = service.image || service.provider_image || (
+                  category.toLowerCase().includes('clean') ? 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&auto=format&fit=crop&q=80' :
+                  category.toLowerCase().includes('electric') ? 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&auto=format&fit=crop&q=80' :
+                  'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&auto=format&fit=crop&q=80'
+                );
+
+                return (
+                  <div key={service.id || service._id || idx} className="bg-white rounded-3xl border border-slate-100 overflow-hidden hover:shadow-2xl transition-all duration-300 group">
+                    <div className="h-48 relative overflow-hidden bg-slate-200">
+                      <img src={image} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <div className="absolute top-4 left-4 bg-blue-600 text-white font-bold text-[10px] uppercase px-2.5 py-1 rounded-md tracking-wider">
+                        {category}
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-slate-900 text-lg group-hover:text-blue-600 transition-colors">{title}</h3>
+                        <div className="flex items-center gap-1 text-amber-500 bg-amber-50 px-2 py-0.5 rounded text-xs font-bold shrink-0">
+                          <Star className="h-3.5 w-3.5 fill-current" /> {rating}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-6 border-t border-slate-100 mt-6">
+                        <div>
+                          <p className="text-[10px] text-slate-400 uppercase font-semibold">Starting cost</p>
+                          <p className="text-2xl font-black text-slate-950">₹{price}</p>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => handleBookNowClick(service)} 
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl transition-colors text-sm cursor-pointer"
+                        >
+                          Book Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </section>
@@ -315,33 +493,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* 6. Statistics */}
-      <section className="py-20 bg-blue-600 text-white font-sans">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 divide-y md:divide-y-0 md:divide-x divide-blue-500/50">
-            <div className="flex flex-col items-center justify-center p-4">
-              <Users className="h-8 w-8 mb-3 text-blue-200" />
-              <p className="text-4xl md:text-5xl font-black mb-1">50,000+</p>
-              <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Verified Providers</p>
-            </div>
-            <div className="flex flex-col items-center justify-center p-4">
-              <CheckCircle className="h-8 w-8 mb-3 text-blue-200" />
-              <p className="text-4xl md:text-5xl font-black mb-1">2.4 Million</p>
-              <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Completed Bookings</p>
-            </div>
-            <div className="flex flex-col items-center justify-center p-4">
-              <Star className="h-8 w-8 mb-3 text-blue-200" />
-              <p className="text-4xl md:text-5xl font-black mb-1">4.9 / 5</p>
-              <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Average Rating</p>
-            </div>
-            <div className="flex flex-col items-center justify-center p-4">
-              <Trophy className="h-8 w-8 mb-3 text-blue-200" />
-              <p className="text-4xl md:text-5xl font-black mb-1">100%</p>
-              <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Service Guarantee</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Testimonials */}
 
       {/* 7. Testimonials */}
       <section className="py-24 bg-white">
@@ -352,84 +504,69 @@ const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { name: 'Sarah Jenkins', role: 'Homeowner', quote: 'The plumber arrived exactly on time and repaired the kitchen pipe leak in 30 minutes! Highly professional.' },
-              { name: 'Marcus Chen', role: 'Apartment Tenant', quote: 'Deep cleaning service was incredible. The team brought their own tools and left the house sparkling clean.' },
-              { name: 'Emily Rodriguez', role: 'Working Mom', quote: 'Amazing service. Finding an electrician for a quick fixture replacement took me less than 2 minutes.' }
-            ].map((test, i) => (
-              <div key={i} className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col justify-between h-full">
-                <div>
-                  <div className="flex gap-1 mb-4">
-                    {[1, 2, 3, 4, 5].map(s => <Star key={s} className="h-4 w-4 fill-amber-400 text-amber-400" />)}
-                  </div>
-                  <p className="text-slate-600 italic text-base">"{test.quote}"</p>
-                </div>
-                <div className="flex items-center gap-3 mt-6 pt-6 border-t border-slate-200/50">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
-                    {test.name[0]}
-                  </div>
-                  <div>
-                    <h5 className="font-bold text-slate-900 text-sm">{test.name}</h5>
-                    <p className="text-xs text-slate-400 font-medium">{test.role}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 8. Download App */}
-      <section className="py-24 bg-white border-t border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-r from-blue-900 to-blue-950 rounded-[3rem] p-10 md:p-16 flex flex-col md:flex-row items-center justify-between shadow-2xl relative overflow-hidden">
-            
-            <div className="text-center md:text-left text-white md:w-1/2 relative z-10">
-              <h2 className="text-3xl md:text-5xl font-extrabold mb-6 leading-tight">Get the LocalService App</h2>
-              <p className="text-blue-200 text-lg mb-10 max-w-md mx-auto md:mx-0">
-                Book and manage your service orders on the go. Get real-time order status updates and exclusive offers.
-              </p>
-              <div className="flex flex-col sm:flex-row justify-center md:justify-start gap-4">
-                <button className="bg-slate-900 hover:bg-black text-white px-6 py-3 rounded-xl flex items-center justify-center gap-3 transition-colors shadow-lg border border-slate-800">
-                  <MonitorSmartphone className="h-6 w-6 text-blue-500" />
-                  <div className="text-left">
-                    <p className="text-[9px] uppercase font-semibold text-slate-400">Download on the</p>
-                    <p className="text-sm font-bold">App Store</p>
-                  </div>
-                </button>
-                <button className="bg-white hover:bg-slate-50 text-slate-900 px-6 py-3 rounded-xl flex items-center justify-center gap-3 transition-colors shadow-lg">
-                  <MonitorSmartphone className="h-6 w-6 text-blue-600" />
-                  <div className="text-left">
-                    <p className="text-[9px] uppercase font-semibold text-slate-500">Get it on</p>
-                    <p className="text-sm font-bold">Google Play</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-            
-            <div className="md:w-1/2 flex justify-center relative z-10 mt-12 md:mt-0">
-              <div className="w-56 h-[400px] bg-slate-950 rounded-[2.5rem] border-8 border-slate-800 shadow-2xl overflow-hidden flex flex-col">
-                <div className="absolute top-0 w-full h-5 bg-slate-950 flex justify-center z-20">
-                  <div className="w-1/3 h-3 bg-slate-900 rounded-b-lg"></div>
-                </div>
-                <div className="flex-1 bg-slate-950 pt-8 px-4 flex flex-col justify-between pb-6">
+            {loadingReviews ? (
+              [1, 2, 3].map((i) => (
+                <div key={i} className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col justify-between h-full animate-pulse">
                   <div className="space-y-3">
-                    <div className="h-10 bg-blue-600/20 border border-blue-500/20 rounded-xl flex items-center justify-between px-3">
-                      <span className="text-[10px] font-bold text-blue-400">LocalService</span>
-                      <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+                    <div className="flex gap-1 mb-4">
+                      <div className="h-4 w-24 bg-slate-200 rounded"></div>
+                    </div>
+                    <div className="h-4 bg-slate-200 rounded w-full"></div>
+                    <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+                  </div>
+                  <div className="flex items-center gap-3 mt-6 pt-6 border-t border-slate-200/50">
+                    <div className="w-10 h-10 rounded-full bg-slate-200"></div>
+                    <div className="space-y-1">
+                      <div className="h-4 bg-slate-200 rounded w-20"></div>
+                      <div className="h-3 bg-slate-200 rounded w-16"></div>
                     </div>
                   </div>
-                  <div className="p-3 bg-blue-600 rounded-xl text-center shadow-lg">
-                    <p className="text-[10px] font-bold text-white">Book Your First Service</p>
-                    <p className="text-[8px] text-blue-100">Get 20% off with code FIRST20</p>
-                  </div>
                 </div>
+              ))
+            ) : reviewsError ? (
+              <div className="col-span-full text-center py-8 text-slate-500 font-medium">
+                Unable to load reviews at this time.
               </div>
-            </div>
+            ) : reviews.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-slate-500 font-medium">
+                No reviews yet
+              </div>
+            ) : (
+              reviews.map((rev, i) => {
+                const name = rev.customer_name || rev.name || 'Customer';
+                const role = rev.customer_role || rev.role || 'Verified Customer';
+                const quote = rev.review_text || rev.comment || rev.content || rev.quote || '';
+                const rating = Math.min(5, Math.max(1, parseInt(rev.rating || 5, 10)));
+                const initial = name[0]?.toUpperCase() || 'C';
 
+                return (
+                  <div key={rev.id || rev._id || i} className="bg-slate-50 p-8 rounded-3xl border border-slate-100 flex flex-col justify-between h-full">
+                    <div>
+                      <div className="flex gap-1 mb-4">
+                        {[1, 2, 3, 4, 5].map(s => (
+                          <Star key={s} className={`h-4 w-4 ${s <= rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+                        ))}
+                      </div>
+                      <p className="text-slate-600 italic text-base">"{quote}"</p>
+                    </div>
+                    <div className="flex items-center gap-3 mt-6 pt-6 border-t border-slate-200/50">
+                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                        {initial}
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-sm">{name}</h5>
+                        <p className="text-xs text-slate-400 font-medium">{role}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </section>
+
+
 
     </div>
   );

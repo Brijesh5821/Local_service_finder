@@ -586,7 +586,7 @@ const RegisterPage = () => {
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-2">Years of Experience</label>
                         <input
-                          type="number" name="experience" required={role === 'Provider'} min="0"
+                          type="text" name="experience" required={role === 'Provider'}
                           value={formData.experience} onChange={handleChange}
                           placeholder="Enter years of experience"
                           className={`block w-full px-4 py-3 bg-white border rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:bg-white transition-all text-sm ${

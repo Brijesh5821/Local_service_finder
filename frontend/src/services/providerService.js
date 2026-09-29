@@ -23,6 +23,10 @@ export const providerService = {
       if (filters.min_rating !== undefined) params.min_rating = filters.min_rating;
       // Check and add availability filter
       if (filters.availability) params.availability = filters.availability;
+      // Check and add date + time slot filters
+      if (filters.date) params.date = filters.date;
+      if (filters.start_time) params.start_time = filters.start_time;
+      if (filters.end_time) params.end_time = filters.end_time;
       // Check and add geo filters
       if (filters.lat !== undefined) params.lat = filters.lat;
       if (filters.lng !== undefined) params.lng = filters.lng;
@@ -42,6 +46,22 @@ export const providerService = {
       throw new Error(error.response?.data?.detail || 'Failed to fetch providers');
     }
   },
+
+  // Retrieve all service categories dynamically from database
+  getCategories: async () => {
+    try {
+      const res = await api.get('/providers/categories');
+      return res.data?.categories || [];
+    } catch (error) {
+      try {
+        const res = await api.get('/admin/categories/public');
+        return (res.data?.categories || []).map(c => c.category_name || c.name || c);
+      } catch (e) {
+        return [];
+      }
+    }
+  },
+
 
   // Fetch provider profile details by ID (existing API)
   getProviderById: async (providerId) => {

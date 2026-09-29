@@ -31,6 +31,20 @@ export const authService = {
     }
   },
 
+  googleLogin: async (idToken) => {
+    try {
+      const response = await api.post('/auth/google', { token: idToken });
+      return response.data;
+    } catch (error) {
+      if (error.response?.data) {
+        const detail = error.response.data.detail || error.response.data.message;
+        throw new Error(detail || 'Google authentication failed');
+      }
+      throw new Error('Network Error or Server Unreachable');
+    }
+  },
+
+
   getProfile: async () => {
     try {
       const response = await api.get('/users/profile');

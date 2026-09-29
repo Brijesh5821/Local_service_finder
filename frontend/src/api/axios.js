@@ -21,10 +21,14 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for API calls to normalize error messages
+// Response interceptor for API calls to normalize error messages and handle 401 unauthorized
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('token');
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
     if (error.response && error.response.data && error.response.data.detail) {
       const detail = error.response.data.detail;
       if (Array.isArray(detail)) {

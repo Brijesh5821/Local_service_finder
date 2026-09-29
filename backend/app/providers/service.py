@@ -17,17 +17,39 @@ users_collection = db["users"]
 # Reference the services collection in database
 services_collection = db["services"]
 
-# Service function to query provider users list with search filters (existing API)
 def get_providers(name=None, category=None, city=None,
                   min_price=None, max_price=None, min_rating=None, availability=None,
+                  date=None, start_time=None, end_time=None,
                   lat=None, lng=None, radius=10.0, sort_by=None, page=1, limit=10):
-    # Delegate provider users lookup to database repository layer
-    return repository.get_providers(name, category, city, min_price, max_price, min_rating, availability, lat, lng, radius, sort_by, page, limit)
+    return repository.get_providers(name, category, city, min_price, max_price, min_rating, availability, date, start_time, end_time, lat, lng, radius, sort_by, page, limit)
+
+def get_categories():
+    return repository.get_categories()
+
 
 # Service function to find provider details by ID (existing API)
 def get_provider_by_id(provider_id: str):
     # Delegate specific provider user retrieval to repository layer
-    return repository.get_provider_by_id(provider_id)
+    provider = repository.get_provider_by_id(provider_id)
+    if not provider:
+        return None
+    try:
+        from bson import ObjectId
+        prov_obj_id = ObjectId(provider_id) if ObjectId.is_valid(provider_id) else provider_id
+        service_doc = services_collection.find_one({"$or": [{"provider_id": provider_id}, {"provider_id": prov_obj_id}]})
+        if service_doc:
+            provider["service_id"] = str(service_doc["_id"])
+            if not provider.get("description") and service_doc.get("description"):
+                provider["description"] = service_doc["description"]
+            if not provider.get("hourly_rate") and service_doc.get("price_value"):
+                provider["hourly_rate"] = service_doc["price_value"]
+            if not provider.get("provider_category") and service_doc.get("category_name"):
+                provider["provider_category"] = service_doc["category_name"]
+            if not provider.get("availability") and service_doc.get("availability"):
+                provider["availability"] = service_doc["availability"]
+    except Exception:
+        pass
+    return provider
 
 # Service function to fetch dashboard stats
 def get_provider_dashboard_stats(provider_id: str) -> dict:

@@ -1,19 +1,159 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, MapPin, ArrowRight, ShieldCheck } from 'lucide-react';
 import { authService } from '../services/authService';
 import { useAuth } from '../context/AuthContext';
 import { validateEmail } from '../utils/validation';
 
+const GoogleIcon = () => (
+  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+    <path
+      fill="#4285F4"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+    />
+  </svg>
+);
+
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [gsiRendered, setGsiRendered] = useState(false);
+
+  const googleButtonRef = useRef(null);
+
+  const handleGoogleCredentialResponse = useCallback(async (response) => {
+    if (!response || !response.credential) {
+      setError('Google sign-in did not return a valid credential token.');
+      return;
+    }
+
+    setGoogleLoading(true);
+    setError('');
+
+    try {
+      const res = await authService.googleLogin(response.credential);
+
+      if (res.success && res.access_token) {
+        login(res.access_token);
+
+        const payload = JSON.parse(atob(res.access_token.split('.')[1]));
+        const userRole = payload.role ? payload.role.toLowerCase() : 'user';
+        const accountStatus = payload.account_status ? payload.account_status.toLowerCase() : 'approved';
+
+        const pendingId = sessionStorage.getItem('pending_booking_id');
+        const redirectTo = location.state?.redirectTo || (pendingId ? `/services?bookServiceId=${pendingId}` : null) || location.state?.from;
+
+        if (userRole === 'admin') {
+          navigate('/admin-dashboard');
+        } else if (userRole === 'user' && accountStatus === 'approved') {
+          if (redirectTo) {
+            navigate(redirectTo, { state: location.state });
+          } else {
+            navigate('/user-dashboard');
+          }
+        } else if (userRole === 'provider' && accountStatus === 'approved') {
+          navigate('/provider-dashboard');
+        } else {
+          navigate('/');
+        }
+      } else {
+        setError(res.message || 'Google authentication failed.');
+      }
+    } catch (err) {
+      setError(err.message || 'Google authentication failed.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [login, navigate]);
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId || clientId === 'your-google-client-id.apps.googleusercontent.com') {
+      return;
+    }
+
+    const initializeGSI = () => {
+      if (window.google?.accounts?.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleCredentialResponse,
+            auto_select: false,
+          });
+
+          if (googleButtonRef.current) {
+            googleButtonRef.current.innerHTML = '';
+            window.google.accounts.id.renderButton(googleButtonRef.current, {
+              theme: 'outline',
+              size: 'large',
+              text: 'continue_with',
+              shape: 'rectangular',
+              logo_alignment: 'left',
+              width: 380,
+            });
+            setGsiRendered(true);
+          }
+        } catch (e) {
+          console.error('Failed to render GSI button:', e);
+        }
+      }
+    };
+
+    if (window.google?.accounts?.id) {
+      initializeGSI();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initializeGSI();
+        }
+      }, 300);
+      return () => clearInterval(interval);
+    }
+  }, [handleGoogleCredentialResponse]);
+
+  const handleCustomGoogleClick = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId || clientId === 'your-google-client-id.apps.googleusercontent.com') {
+      setError('Google Client ID is not configured. Please set VITE_GOOGLE_CLIENT_ID in .env.');
+      return;
+    }
+
+    if (window.google?.accounts?.id) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+        });
+        window.google.accounts.id.prompt();
+      } catch (err) {
+        setError('Failed to launch Google Sign-In prompt.');
+      }
+    } else {
+      setError('Google Sign-In SDK is still loading. Please try again in a moment.');
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -51,10 +191,17 @@ const LoginPage = () => {
         const userRole = payload.role ? payload.role.toLowerCase() : 'user';
         const accountStatus = payload.account_status ? payload.account_status.toLowerCase() : 'approved';
 
+        const pendingId = sessionStorage.getItem('pending_booking_id');
+        const redirectTo = location.state?.redirectTo || (pendingId ? `/services?bookServiceId=${pendingId}` : null) || location.state?.from;
+
         if (userRole === 'admin') {
           navigate('/admin-dashboard');
         } else if (userRole === 'user' && accountStatus === 'approved') {
-          navigate('/user-dashboard');
+          if (redirectTo) {
+            navigate(redirectTo, { state: location.state });
+          } else {
+            navigate('/user-dashboard');
+          }
         } else if (userRole === 'provider' && accountStatus === 'approved') {
           navigate('/provider-dashboard');
         } else {
@@ -195,7 +342,7 @@ const LoginPage = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || googleLoading}
                 className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md shadow-blue-600/20 hover:shadow-blue-600/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed text-sm mt-2"
               >
                 {loading ? (
@@ -211,6 +358,32 @@ const LoginPage = () => {
                 )}
               </button>
             </form>
+
+            {/* Google Authentication Section */}
+            <div className="mt-4">
+              <div ref={googleButtonRef} className="w-full flex justify-center min-h-[44px]"></div>
+
+              {!gsiRendered && (
+                <button
+                  type="button"
+                  onClick={handleCustomGoogleClick}
+                  disabled={googleLoading || loading}
+                  className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white border border-slate-200 rounded-xl font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm transition-all text-sm disabled:opacity-60 cursor-pointer mt-1"
+                >
+                  {googleLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
+                      <span>Authenticating with Google…</span>
+                    </>
+                  ) : (
+                    <>
+                      <GoogleIcon />
+                      <span>Continue with Google</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
 
             {/* Divider */}
             <div className="relative my-6">

@@ -96,3 +96,11 @@ def mark_as_read(notification_id: str, user_id: str = Depends(get_current_user_i
         raise HTTPException(status_code=400, detail="Notification not found or access denied")
     # Return success message
     return {"success": True, "message": "Notification marked as read"}
+
+# Endpoint to manually process booking reminders
+@router.post("/trigger-reminders")
+def trigger_reminders(date_override: str = None):
+    from app.notifications.reminder_service import process_booking_reminders
+    stats = process_booking_reminders(target_date_override=date_override)
+    return {"success": True, "stats": stats}
+

@@ -152,6 +152,21 @@ def get_current_provider_id(authorization: str = Header(...)):
         # Raise 401
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+def get_optional_user_id(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("user_id")
+    except JWTError:
+        return None
+
+@router.get("/categories")
+def get_categories():
+    cats = controller.get_categories()
+    return {"success": True, "categories": cats}
+
 # Existing user route to search service providers
 @router.get("/")
 def get_providers(
@@ -162,19 +177,24 @@ def get_providers(
     max_price: Optional[float] = Query(None),
     min_rating: Optional[float] = Query(None),
     availability: Optional[str] = Query(None),
+    date: Optional[str] = Query(None),
+    start_time: Optional[str] = Query(None),
+    end_time: Optional[str] = Query(None),
     lat: Optional[float] = Query(None),
     lng: Optional[float] = Query(None),
     radius: Optional[float] = Query(10.0),
     sort_by: Optional[str] = Query(None),
     page: Optional[int] = Query(1),
     limit: Optional[int] = Query(10),
-    _user_id: str = Depends(get_current_user_id)
+    _user_id: Optional[str] = Depends(get_optional_user_id)
 ):
     # Retrieve matching providers using controller method
     res = controller.get_providers(
         name, category, city, min_price, max_price, min_rating, availability,
+        date, start_time, end_time,
         lat, lng, radius, sort_by, page, limit
     )
+
     providers = res.get("providers", [])
     result = []
     # Loop to restructure object ID field
@@ -201,7 +221,7 @@ def get_providers(
 
 # Existing user route to get single provider profile details
 @router.get("/{provider_id}")
-def get_provider(provider_id: str, _user_id: str = Depends(get_current_user_id)):
+def get_provider(provider_id: str, _user_id: Optional[str] = Depends(get_optional_user_id)):
     # Retrieve provider from controller database query
     provider = controller.get_provider_by_id(provider_id)
     # Check if provider document exists
