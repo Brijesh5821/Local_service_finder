@@ -1291,10 +1291,10 @@ const ProviderDashboard = () => {
           {/* Modal Card */}
           <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="h-1 bg-blue-600" />
-            <form onSubmit={handleServiceFormSubmit} className="p-6">
+            <form onSubmit={handleServiceFormSubmit} className="p-6 sm:p-8">
               {/* Header */}
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-extrabold text-slate-900 text-lg">
+                <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
                   {serviceModal.type === 'add' ? 'Add New Service Listing' : 'Edit Service details'}
                 </h3>
                 {/* Close Button */}
@@ -1315,91 +1315,87 @@ const ProviderDashboard = () => {
                 </div>
               )}
 
-              {/* Form fields scroll container */}
-              <div className="space-y-4 mb-6 max-h-[78vh] overflow-y-auto pr-1">
-                
-                {/* 2-Column Grid Layout for Desktop */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Title Input - Full Width */}
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Service Title</label>
-                    <input
-                      type="text"
-                      value={serviceForm.title}
-                      onChange={(e) => setServiceForm(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="Enter service name"
-                      className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Category Dropdown */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Category</label>
-                    <select
-                      value={serviceForm.category_name}
-                      onChange={(e) => setServiceForm(prev => ({ ...prev, category_name: e.target.value }))}
-                      className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select service category</option>
-                      {dynamicCategories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Price Tier */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Price Tier</label>
-                    <select
-                      value={serviceForm.price}
-                      onChange={(e) => setServiceForm(prev => ({ ...prev, price: e.target.value }))}
-                      className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="$">₹ (Low-cost)</option>
-                      <option value="$$">₹₹ (Average)</option>
-                      <option value="$$$">₹₹₹ (Premium)</option>
-                    </select>
-                  </div>
-
-                  {/* Hourly Rate */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Hourly Rate (₹)</label>
-                    <input
-                      type="number"
-                      value={serviceForm.price_value}
-                      onChange={(e) => setServiceForm(prev => ({ ...prev, price_value: e.target.value }))}
-                      placeholder="Enter price"
-                      className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Service Location */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Service Location</label>
-                    <input
-                      type="text"
-                      value={serviceForm.city}
-                      onChange={(e) => setServiceForm(prev => ({ ...prev, city: e.target.value }))}
-                      placeholder="Enter service location"
-                      className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Description Input - Full Width */}
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Service Description</label>
-                    <textarea
-                      value={serviceForm.description}
-                      onChange={(e) => setServiceForm(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Describe your service"
-                      rows="3"
-                      className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    />
-                  </div>
+              {/* Form fields grid wrapper */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 max-h-[80vh] overflow-y-auto pr-1.5">
+                {/* Title Input - Full Width */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Service Title</label>
+                  <input
+                    type="text"
+                    value={serviceForm.title}
+                    onChange={(e) => setServiceForm(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Enter service name"
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
 
-                {/* Service Availability Section */}
-                <div className="pt-3 border-t border-slate-100">
+                {/* Category Dropdown */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Category</label>
+                  <select
+                    value={serviceForm.category_name}
+                    onChange={(e) => setServiceForm(prev => ({ ...prev, category_name: e.target.value }))}
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select service category</option>
+                    {dynamicCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Price Tier */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Price Tier</label>
+                  <select
+                    value={serviceForm.price}
+                    onChange={(e) => setServiceForm(prev => ({ ...prev, price: e.target.value }))}
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="$">₹ (Low-cost)</option>
+                    <option value="$$">₹₹ (Average)</option>
+                    <option value="$$$">₹₹₹ (Premium)</option>
+                  </select>
+                </div>
+
+                {/* Hourly Rate */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Hourly Rate (₹)</label>
+                  <input
+                    type="number"
+                    value={serviceForm.price_value}
+                    onChange={(e) => setServiceForm(prev => ({ ...prev, price_value: e.target.value }))}
+                    placeholder="Enter price"
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* City Location */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Service Location</label>
+                  <input
+                    type="text"
+                    value={serviceForm.city}
+                    onChange={(e) => setServiceForm(prev => ({ ...prev, city: e.target.value }))}
+                    placeholder="Enter service location"
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Description Input - Full Width */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">Service Description</label>
+                  <textarea
+                    value={serviceForm.description}
+                    onChange={(e) => setServiceForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Describe your service"
+                    rows="3"
+                    className="block w-full px-3.5 py-2.5 border border-slate-200 bg-slate-50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+
+                {/* Service Availability Section - Full Width */}
+                <div className="sm:col-span-2 pt-3 border-t border-slate-100">
                   <label className="block text-xs font-extrabold text-slate-800 mb-1 uppercase tracking-wider">
                     Service Availability
                   </label>
@@ -1408,7 +1404,7 @@ const ProviderDashboard = () => {
                   </p>
 
                   {/* Day selection buttons */}
-                  <div className="flex flex-wrap gap-1.5 mb-4">
+                  <div className="flex flex-wrap gap-2 mb-4">
                     {WEEKDAYS.map((dayName) => {
                       const isSelected = (serviceForm.availability || []).some(d => d.day === dayName);
                       return (
